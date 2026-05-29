@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Optimizely → Mixpanel Migration Tool</title>
+<style>
+  :root {
+    --mp-purple: #534AB7;
+    --mp-purple-dark: #3C3489;
+    --mp-purple-light: #EEEDFE;
+    --mp-green: #3B6D11;
+    --mp-green-light: #EAF3DE;
+    --mp-red: #A32D2D;
+    --mp-red-light: #FCEBEB;
+    --mp-amber: #BA7517;
+    --mp-amber-light: #FFF3CD;
+    --mp-blue: #185FA5;
+    --mp-blue-light: #E6F1FB;
+    --bg: #F8F7F5;
+    --bg2: #F0EEE9;
+    --surface: #FFFFFF;
+    --border: #E2DDD6;
+    --border2: #CBC5BC;
+    --text: #1A1714;
+    --text2: #5F5A54;
+    --text3: #9B9590;
+    --radius: 8px;
+    --radius-sm: 5px;
+    --font: 'DM Sans', system-ui, sans-serif;
+    --mono: 'DM Mono', 'Fira Code', monospace;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+  /* ── Layout ── */
+  .app { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-logo { padding: 20px 16px 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-logo h1 { font-size: 13px; font-weight: 600; color: var(--text); }
+  .sidebar-logo p { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .sidebar-nav { padding: 8px; flex: 1; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text2); transition: all 0.12s; margin-bottom: 2px; border: none; background: none; width: 100%; text-align: left; }
+  .nav-item:hover { background: var(--bg); color: var(--text); }
+  .nav-item.active { background: var(--mp-purple-light); color: var(--mp-purple); }
+  .nav-item .step-num { width: 20px; height: 20px; border-radius: 50%; background: var(--bg2); font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .nav-item.active .step-num { background: var(--mp-purple); color: white; }
+  .nav-item.done .step-num { background: var(--mp-green); color: white; }
+  .nav-item.done { color: var(--text2); }
+
+  .main { flex: 1; overflow-y: auto; }
+  .view { display: none; padding: 28px 32px; max-width: 960px; }
+  .view.active { display: block; }
+
+  /* ── Typography ── */
+  .view-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .view-sub { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+  .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+
+  /* ── Cards ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; }
+  .card-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+
+  /* ── Forms ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field.span2 { grid-column: span 2; }
+  .field label { font-size: 12px; font-weight: 500; color: var(--text2); }
+  .field input, .field select { font-size: 13px; font-family: var(--font); padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; transition: border 0.12s; }
+  .field input:focus, .field select:focus { border-color: var(--mp-purple); box-shadow: 0 0 0 3px rgba(83,74,183,0.1); }
+  .field input[type=password] { font-family: monospace; letter-spacing: 0.1em; }
+  .auth-preview { font-size: 11px; font-family: var(--mono); color: var(--text3); background: var(--bg); padding: 6px 10px; border-radius: var(--radius-sm); margin-top: 6px; }
+
+  /* ── Buttons ── */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-size: 13px; font-family: var(--font); font-weight: 500; cursor: pointer; transition: all 0.12s; white-space: nowrap; }
+  .btn:hover { background: var(--bg); }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-primary { background: var(--mp-purple); color: white; border-color: var(--mp-purple); }
+  .btn-primary:hover { background: var(--mp-purple-dark); border-color: var(--mp-purple-dark); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-icon { padding: 6px 8px; }
+
+  /* ── Alerts ── */
+  .alert { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 12px; }
+  .alert-error { background: var(--mp-red-light); border: 1px solid #F09595; color: var(--mp-red); }
+  .alert-info  { background: var(--mp-blue-light); border: 1px solid #85B7EB; color: var(--mp-blue); }
+  .alert-warn  { background: var(--mp-amber-light); border: 1px solid #FFD980; color: var(--mp-amber); }
+  .alert-ok    { background: var(--mp-green-light); border: 1px solid #B5D98A; color: var(--mp-green); }
+
+  /* ── Pills ── */
+  .pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .pill-purple  { background: var(--mp-purple-light); color: var(--mp-purple); }
+  .pill-green   { background: var(--mp-green-light);  color: var(--mp-green); }
+  .pill-red     { background: var(--mp-red-light);    color: var(--mp-red); }
+  .pill-amber   { background: var(--mp-amber-light);  color: var(--mp-amber); }
+  .pill-neutral { background: var(--bg2); color: var(--text2); }
+  .pill-teal    { background: #E1F5EE; color: #0F6E56; }
+
+  /* ── Table ── */
+  .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); padding: 8px 12px; text-align: left; background: var(--bg); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr.selected td { background: #F5F4FE; }
+  tr:hover td { background: var(--bg); }
+  tr.selected:hover td { background: #EEEDFC; }
+  .mono { font-family: var(--mono); font-size: 12px; }
+
+  /* ── SDK select in table ── */
+  .sdk-select { font-size: 12px; font-family: var(--font); padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; max-width: 140px; }
+  .sdk-select:focus { border-color: var(--mp-purple); }
+
+  /* ── Stats ── */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .stat-n { font-size: 24px; font-weight: 600; line-height: 1; }
+  .stat-l { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  /* ── Log ── */
+  .log { background: #0F0E0D; color: #C8C2BA; border-radius: var(--radius); padding: 14px 16px; font-family: var(--mono); font-size: 12px; line-height: 1.8; max-height: 280px; overflow-y: auto; }
+  .log .ok   { color: #7EC466; }
+  .log .err  { color: #E07070; }
+  .log .warn { color: #D4A84B; }
+  .log .info { color: #6BB5D6; }
+
+  /* ── Toolbar ── */
+  .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar input[type=text] { font-size: 13px; font-family: var(--font); padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; min-width: 200px; flex: 1; }
+  .toolbar input:focus { border-color: var(--mp-purple); }
+  .toolbar select { font-size: 13px; font-family: var(--font); padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; }
+  .spacer { flex: 1; }
+  .badge { font-size: 12px; color: var(--text2); }
+
+  /* ── Code samples view ── */
+  .code-flag-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
+  .code-flag-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .code-flag-header .flag-key { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+  .code-flag-header .flag-sdk { font-size: 12px; color: var(--text2); }
+  .code-pre { background: #0F0E0D; color: #C8C2BA; padding: 14px 16px; font-family: var(--mono); font-size: 12px; line-height: 1.7; overflow-x: auto; white-space: pre; margin: 0; }
+  .code-pre .kw  { color: #CF8FEB; }
+  .code-pre .str { color: #96D986; }
+  .code-pre .cm  { color: #6B6560; }
+  .code-pre .fn  { color: #7DB8E8; }
+  .code-pre .num { color: #E8A96B; }
+
+  /* ── Select all row ── */
+  .sel-all-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); }
+
+  /* ── Export bar ── */
+  .export-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; }
+  .export-bar span { font-size: 13px; color: var(--text2); flex: 1; }
+
+  /* divider */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* progress */
+  .progress-bar-wrap { background: var(--bg2); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 8px; }
+  .progress-bar { height: 100%; background: var(--mp-purple); border-radius: 4px; transition: width 0.3s; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <h1>Migration Tool</h1>
+      <p>Optimizely → Mixpanel</p>
+    </div>
+    <div class="sidebar-nav">
+      <button class="nav-item active" data-view="config" onclick="goTo('config')">
+        <span class="step-num" id="sn-config">1</span> Configure
+      </button>
+      <button class="nav-item" data-view="select" onclick="goTo('select')">
+        <span class="step-num" id="sn-select">2</span> Select flags
+      </button>
+      <button class="nav-item" data-view="export" onclick="goTo('export')">
+        <span class="step-num" id="sn-export">3</span> Export report
+      </button>
+      <button class="nav-item" data-view="code" onclick="goTo('code')">
+        <span class="step-num" id="sn-code">4</span> Code samples
+      </button>
+      <button class="nav-item" data-view="import" onclick="goTo('import')">
+        <span class="step-num" id="sn-import">5</span> Import
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Main ────────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- STEP 1: Configure -->
+    <div class="view active" id="view-config">
+      <div class="view-title">Configure connections</div>
+      <div class="view-sub">Enter your Optimizely and Mixpanel credentials to get started.</div>
+
+      <div class="section-label">Optimizely</div>
+      <div class="card">
+        <div class="grid-2">
+          <div class="field span2">
+            <label>API token</label>
+            <input type="password" id="opt-token" placeholder="Bearer token from Optimizely account settings"/>
+          </div>
+          <div class="field">
+            <label>Project ID</label>
+            <input type="text" id="opt-project" placeholder="e.g. 12345678"/>
+          </div>
+          <div class="field">
+            <label>Primary environment</label>
+            <input type="text" id="opt-env" value="production"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">Mixpanel</div>
+      <div class="card">
+        <div class="grid-2">
+          <div class="field">
+            <label>Service account username</label>
+            <input type="text" id="mp-user" autocomplete="off" placeholder="service-account.abc123.mp-service-account"/>
+          </div>
+          <div class="field">
+            <label>Service account secret</label>
+            <input type="password" id="mp-secret" autocomplete="off" placeholder="Your service account secret"/>
+          </div>
+          <div class="field">
+            <label>Project ID</label>
+            <input type="text" id="mp-project" placeholder="e.g. 99887766"/>
+          </div>
+          <div class="field">
+            <label>Workspace ID</label>
+            <input type="text" id="mp-workspace" placeholder="e.g. 55443322"/>
+          </div>
+          <div class="field">
+            <label>Project token (for code samples)</label>
+            <input type="text" id="mp-token" placeholder="e.g. abc123def456"/>
+          </div>
+          <div class="field">
+            <label>Region</label>
+            <select id="mp-region">
+              <option value="mixpanel">US — mixpanel.com</option>
+              <option value="eu.mixpanel">EU — eu.mixpanel.com</option>
+            </select>
+          </div>
+        </div>
+        <div class="auth-preview" id="auth-preview">Authorization header preview will appear once both credential fields are filled.</div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" id="btn-fetch" onclick="fetchFlags()">Fetch flags from Optimizely</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="dry-run" checked/> Dry run
+        </label>
+      </div>
+      <div id="config-error" style="display:none;margin-top:12px"></div>
+    </div>
+
+    <!-- STEP 2: Select flags -->
+    <div class="view" id="view-select">
+      <div class="view-title">Select flags to migrate</div>
+      <div class="view-sub">Choose which flags to import and set the Mixpanel SDK for each one.</div>
+
+      <div class="export-bar">
+        <span id="sel-summary">Select flags below</span>
+        <button class="btn btn-sm" onclick="exportCSV()">⬇ Export flag list (CSV)</button>
+        <button class="btn btn-sm btn-primary" onclick="goTo('export')">View report →</button>
+      </div>
+
+      <div class="toolbar">
+        <input type="text" id="search" placeholder="Search by key or name…" oninput="renderTable()"/>
+        <select id="f-status" onchange="renderTable()">
+          <option value="">All statuses</option>
+          <option value="enabled">Enabled</option>
+          <option value="disabled">Disabled</option>
+          <option value="archived">Archived</option>
+        </select>
+        <select id="f-type" onchange="renderTable()">
+          <option value="">All rule types</option>
+          <option value="experiment">Has experiment</option>
+          <option value="rollout">Rollout only</option>
+          <option value="plain">No rules</option>
+        </select>
+        <span class="badge" id="count-badge">0 flags</span>
+        <button class="btn btn-sm" onclick="goTo('code')">Code samples →</button>
+        <button class="btn btn-sm btn-primary" onclick="goTo('import')">Import selected →</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="sel-all-row">
+          <input type="checkbox" id="chk-all" onchange="toggleAll()"/>
+          <label for="chk-all">Select all visible</label>
+        </div>
+        <table>
+          <thead><tr>
+            <th style="width:32px"></th>
+            <th>Key</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Rule type</th>
+            <th>Env rules</th>
+            <th>Vars</th>
+            <th>Mixpanel SDK</th>
+          </tr></thead>
+          <tbody id="flag-tbody"></tbody>
+        </table>
+        <div id="empty-msg" style="display:none;text-align:center;padding:40px;color:var(--text3);font-size:13px">No flags match your filter.</div>
+      </div>
+    </div>
+
+    <!-- STEP 3: Export report -->
+    <div class="view" id="view-export">
+      <div class="view-title">Flag migration report</div>
+      <div class="view-sub">Shareable summary of all retrieved flags and their migration status.</div>
+
+      <div class="export-bar">
+        <span>Share this report with your customer before importing.</span>
+        <button class="btn btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="btn btn-sm" onclick="exportJSON()">⬇ Export JSON</button>
+        <button class="btn btn-sm" onclick="exportMarkdown()">⬇ Export Markdown</button>
+      </div>
+
+      <div class="stats-row" id="report-stats"></div>
+
+      <div class="card" style="padding:0;overflow:hidden">
+        <table id="report-table">
+          <thead><tr>
+            <th>Key</th><th>Name</th><th>Status</th><th>Rule type</th>
+            <th>Environments</th><th>Variables</th><th>SDK assigned</th><th>Selected</th>
+          </tr></thead>
+          <tbody id="report-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- STEP 4: Code samples -->
+    <div class="view" id="view-code">
+      <div class="view-title">SDK code samples</div>
+      <div class="view-sub">Ready-to-paste implementation code for each selected flag based on the assigned SDK.</div>
+
+      <div class="export-bar">
+        <span>Generated for <span id="code-count">0</span> selected flags.</span>
+        <button class="btn btn-sm" onclick="exportCodeSamples()">⬇ Export all code samples (.md)</button>
+      </div>
+
+      <div id="code-blocks"></div>
+      <div id="code-empty" style="display:none;text-align:center;padding:60px;color:var(--text3)">
+        Select flags in step 2 to generate code samples.
+      </div>
+    </div>
+
+    <!-- STEP 5: Import -->
+    <div class="view" id="view-import">
+      <div class="view-title">Import to Mixpanel</div>
+      <div class="view-sub">Creates experiments first where needed, then feature flags.</div>
+
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-n" id="s-total">0</div><div class="stat-l">flags selected</div></div>
+        <div class="stat-card"><div class="stat-n" id="s-exp" style="color:var(--mp-purple)">0</div><div class="stat-l">experiments created</div></div>
+        <div class="stat-card"><div class="stat-n" id="s-flag" style="color:var(--mp-green)">0</div><div class="stat-l">flags created</div></div>
+        <div class="stat-card"><div class="stat-n" id="s-fail" style="color:var(--mp-red)">0</div><div class="stat-l">failed</div></div>
+      </div>
+
+      <div class="progress-bar-wrap" style="margin-bottom:12px">
+        <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+      </div>
+
+      <div class="log" id="import-log">Ready — press Run import to begin.</div>
+
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn" onclick="goTo('select')">← Back</button>
+        <button class="btn btn-primary" id="btn-run" onclick="runImport()">Run import</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let allFlags = [];
+let selectedKeys = new Set();
+let flagSdks = {};   // flagKey → sdk id
+let encodedAuth = '';
+
+const SDKS = [
+  { id: 'javascript', label: 'JavaScript (Web)',   serving: 'client' },
+  { id: 'nodejs',     label: 'Node.js',            serving: 'server' },
+  { id: 'python',     label: 'Python',             serving: 'server' },
+  { id: 'swift',      label: 'iOS (Swift)',        serving: 'client' },
+  { id: 'android',    label: 'Android',            serving: 'client' },
+  { id: 'reactnative',label: 'React Native',       serving: 'client' },
+  { id: 'flutter',    label: 'Flutter',            serving: 'client' },
+  { id: 'go',         label: 'Go',                 serving: 'server' },
+  { id: 'ruby',       label: 'Ruby',               serving: 'server' },
+  { id: 'java',       label: 'Java',               serving: 'server' },
+];
+
+// ── Auth preview ──────────────────────────────────────────────────────────────
+document.getElementById('mp-user').addEventListener('input', updateAuth);
+document.getElementById('mp-secret').addEventListener('input', updateAuth);
+function updateAuth() {
+  const u = v('mp-user'), s = v('mp-secret');
+  if (u && s) {
+    encodedAuth = btoa(`${u}:${s}`);
+    el('auth-preview').textContent = `Authorization: Basic ${encodedAuth.slice(0,14)}…${encodedAuth.slice(-6)}  (base64("${u.split('.')[0]}…:secret"))`;
+  } else {
+    encodedAuth = '';
+    el('auth-preview').textContent = 'Authorization header preview will appear once both fields are filled.';
+  }
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goTo(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el(`view-${id}`).classList.add('active');
+  document.querySelector(`[data-view="${id}"]`).classList.add('active');
+  if (id === 'export') renderReport();
+  if (id === 'code') renderCodeBlocks();
+  if (id === 'import') el('s-total').textContent = selectedKeys.size;
+}
+
+// ── Fetch flags ───────────────────────────────────────────────────────────────
+async function fetchFlags() {
+  const cfg = getCfg();
+  const eb = el('config-error'); eb.style.display = 'none';
+  if (!cfg.optToken || !cfg.optProject) return showErr(eb, 'Optimizely API token and project ID are required.');
+  if (!v('mp-user') || !v('mp-secret')) return showErr(eb, 'Mixpanel service account username and secret are required.');
+  const btn = el('btn-fetch'); btn.disabled = true; btn.textContent = 'Fetching…';
+  try {
+    allFlags = await doFetchFlags(cfg);
+    // Default SDK based on rule type
+    allFlags.forEach(f => {
+      if (!flagSdks[f.key]) flagSdks[f.key] = flagRuleType(f, cfg.optEnv) === 'plain' ? 'javascript' : 'javascript';
+    });
+    selectedKeys = new Set(allFlags.map(f => f.key));
+    renderTable();
+    updateNavDone('config');
+    goTo('select');
+  } catch(e) { showErr(eb, e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Fetch flags from Optimizely'; }
+}
+
+async function doFetchFlags(cfg) {
+  const flags = []; let pt = null, pn = 1;
+  do {
+    const url = new URL(`https://api.optimizely.com/flags/v1/projects/${cfg.optProject}/flags`);
+    url.searchParams.set('per_page', 100);
+    pt ? url.searchParams.set('page_token', pt) : url.searchParams.set('page_number', pn);
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.optToken}`, Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`Optimizely ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const data = await res.json();
+    const items = data.items ?? (Array.isArray(data) ? data : []);
+    flags.push(...items);
+    pt = data.next_page_token ?? data.meta?.next_page_token ?? null; pn++;
+  } while (pt);
+  return flags;
+}
+
+async function doFetchRuleset(cfg, flagKey) {
+  const url = `https://api.optimizely.com/flags/v1/projects/${cfg.optProject}/flags/${flagKey}/environments/${cfg.optEnv}/ruleset`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.optToken}`, Accept: 'application/json' } });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+// ── Table render ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const cfg = getCfg();
+  const q = v('search').toLowerCase(), sf = v('f-status'), tf = v('f-type');
+  const vis = allFlags.filter(f => {
+    const mq = !q || f.key.toLowerCase().includes(q) || (f.name||'').toLowerCase().includes(q);
+    return mq && (!sf || flagStatus(f) === sf) && (!tf || flagRuleType(f, cfg.optEnv) === tf);
+  });
+  const tbody = el('flag-tbody');
+  tbody.innerHTML = vis.map(f => {
+    const rt = flagRuleType(f, cfg.optEnv);
+    const vc = Array.isArray(f.variable_definitions) ? f.variable_definitions.length : Object.keys(f.variable_definitions||{}).length;
+    const rc = (f.environments?.[cfg.optEnv]?.rules_detail ?? []).length;
+    const sel = selectedKeys.has(f.key);
+    const sdkOpts = SDKS.map(s => `<option value="${s.id}" ${flagSdks[f.key]===s.id?'selected':''}>${s.label}</option>`).join('');
+    const envKeys = Object.keys(f.environments||{}).filter(e=>f.environments[e].enabled).join(', ') || '—';
+    return `<tr class="${sel?'selected':''}" data-key="${f.key}">
+      <td><input type="checkbox" ${sel?'checked':''} data-key="${f.key}" onchange="toggleFlag('${f.key}',this.checked)"/></td>
+      <td class="mono">${f.key}</td>
+      <td>${f.name||'—'}</td>
+      <td>${statusPill(f)}</td>
+      <td>${ruleTypePill(rt)}</td>
+      <td style="color:var(--text2)">${rc}</td>
+      <td style="color:var(--text2)">${vc}</td>
+      <td><select class="sdk-select" data-key="${f.key}" onchange="setSdk('${f.key}',this.value)">${sdkOpts}</select></td>
+    </tr>`;
+  }).join('');
+  el('empty-msg').style.display = vis.length === 0 ? '' : 'none';
+  const selCount = [...selectedKeys].filter(k => vis.some(f => f.key === k)).length;
+  el('count-badge').textContent = `${vis.length} flags`;
+  el('sel-summary').textContent = `${selectedKeys.size} of ${allFlags.length} flags selected`;
+}
+
+function toggleFlag(key, checked) {
+  if (checked) selectedKeys.add(key); else selectedKeys.delete(key);
+  renderTable();
+}
+
+function setSdk(key, sdk) {
+  flagSdks[key] = sdk;
+}
+
+function toggleAll() {
+  const cfg = getCfg();
+  const q = v('search').toLowerCase(), sf = v('f-status'), tf = v('f-type');
+  const vis = allFlags.filter(f => {
+    const mq = !q || f.key.toLowerCase().includes(q) || (f.name||'').toLowerCase().includes(q);
+    return mq && (!sf || flagStatus(f) === sf) && (!tf || flagRuleType(f, cfg.optEnv) === tf);
+  });
+  const checked = el('chk-all').checked;
+  vis.forEach(f => checked ? selectedKeys.add(f.key) : selectedKeys.delete(f.key));
+  renderTable();
+}
+
+// ── Report render ─────────────────────────────────────────────────────────────
+function renderReport() {
+  const cfg = getCfg();
+  const env = cfg.optEnv;
+  const expC = allFlags.filter(f => flagRuleType(f,env)==='experiment').length;
+  const rolC = allFlags.filter(f => flagRuleType(f,env)==='rollout').length;
+  const plnC = allFlags.filter(f => flagRuleType(f,env)==='plain').length;
+  const selC = selectedKeys.size;
+
+  el('report-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-n">${allFlags.length}</div><div class="stat-l">total flags</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:var(--mp-purple)">${expC}</div><div class="stat-l">with a/b experiment</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:#0F6E56">${rolC}</div><div class="stat-l">rollout only</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:var(--mp-green)">${selC}</div><div class="stat-l">selected to import</div></div>
+  `;
+
+  const tbody = el('report-tbody');
+  tbody.innerHTML = allFlags.map(f => {
+    const rt = flagRuleType(f, env);
+    const vc = Array.isArray(f.variable_definitions) ? f.variable_definitions.length : Object.keys(f.variable_definitions||{}).length;
+    const envEnabled = Object.keys(f.environments||{}).filter(e => f.environments[e].enabled).join(', ') || '—';
+    const sdk = SDKS.find(s => s.id === (flagSdks[f.key]||'javascript'))?.label || 'JavaScript (Web)';
+    const sel = selectedKeys.has(f.key);
+    return `<tr>
+      <td class="mono">${f.key}</td>
+      <td>${f.name||'—'}</td>
+      <td>${statusPill(f)}</td>
+      <td>${ruleTypePill(rt)}</td>
+      <td style="font-size:12px;color:var(--text2)">${envEnabled}</td>
+      <td style="color:var(--text2)">${vc}</td>
+      <td style="font-size:12px">${sdk}</td>
+      <td>${sel ? '<span class="pill pill-green">✓ Selected</span>' : '<span class="pill pill-neutral">Skipped</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Evaluation mode definitions ───────────────────────────────────────────────
+// Maps sdk → available evaluation modes with labels and descriptions
+const EVAL_MODES = {
+  javascript: [
+    { id: 'networkOnly',                   label: 'Network only (default)',            desc: 'Async — fetches fresh assignments every page load. No persistence.' },
+    { id: 'networkFirst',                   label: 'Network first + persistence',       desc: 'Async — waits for network; falls back to IndexedDB if network fails.' },
+    { id: 'persistenceUntilNetworkSuccess', label: 'Persistence until network success', desc: 'Sync — serves IndexedDB immediately; background fetch refreshes session.' },
+  ],
+  nodejs: [
+    { id: 'local',  label: 'Local evaluation (recommended)', desc: 'Sync — polls Mixpanel in background; zero-latency assignment from memory.' },
+    { id: 'remote', label: 'Remote evaluation',              desc: 'Async — network call to Mixpanel servers at assignment time. For serverless/ephemeral envs.' },
+  ],
+  python: [
+    { id: 'local',  label: 'Local evaluation (recommended)', desc: 'Sync — polls Mixpanel in background; zero-latency assignment from memory.' },
+    { id: 'remote', label: 'Remote evaluation',              desc: 'Async — network call per evaluation. For short-lived or serverless environments.' },
+  ],
+  swift: [
+    { id: 'networkOnly',                   label: 'Network only (default)',            desc: 'Async — fetches on every launch, no persistence.' },
+    { id: 'networkFirst',                   label: 'Network first + persistence',       desc: 'Async — waits for network; falls back to UserDefaults if network fails.' },
+    { id: 'persistenceUntilNetworkSuccess', label: 'Persistence until network success', desc: 'Sync — returns UserDefaults immediately; background fetch refreshes.' },
+  ],
+  android: [
+    { id: 'networkOnly',                   label: 'Network only (default)',            desc: 'Async — fetches on every launch, no persistence.' },
+    { id: 'networkFirst',                   label: 'Network first + persistence',       desc: 'Async — waits for network; falls back to device storage if network fails.' },
+    { id: 'persistenceUntilNetworkSuccess', label: 'Persistence until network success', desc: 'Sync — returns from device storage immediately; background fetch refreshes.' },
+  ],
+  reactnative: [
+    { id: 'async', label: 'Async (getVariantValue)', desc: 'Awaits network response. Works in both JS and native mode.' },
+    { id: 'sync',  label: 'Sync (getVariantValueSync)', desc: 'Returns immediately — requires areFlagsReady() check first.' },
+  ],
+  flutter: [
+    { id: 'networkOnly',                   label: 'Network only (default)',            desc: 'Async — fetches on every launch, no persistence.' },
+    { id: 'networkFirst',                   label: 'Network first + persistence',       desc: 'Async — waits for network; falls back to on-device storage.' },
+    { id: 'persistenceUntilNetworkSuccess', label: 'Persistence until network success', desc: 'Sync — returns persisted value immediately; background fetch refreshes.' },
+  ],
+  go:   [{ id: 'local', label: 'Local evaluation', desc: 'Sync — polls Mixpanel in background; zero-latency assignment from memory.' }],
+  ruby: [{ id: 'local', label: 'Local evaluation', desc: 'Sync — polls Mixpanel in background; zero-latency assignment from memory.' }],
+  java: [{ id: 'local', label: 'Local evaluation', desc: 'Sync — polls Mixpanel in background; zero-latency assignment from memory.' }],
+};
+
+// Per-flag eval mode state: flagKey → evalMode id
+let flagEvalModes = {};
+
+function getEvalModes(sdk) {
+  return EVAL_MODES[sdk] ?? [{ id: 'default', label: 'Default', desc: '' }];
+}
+
+function getEvalMode(flagKey, sdk) {
+  const modes = getEvalModes(sdk);
+  return flagEvalModes[flagKey] || modes[0].id;
+}
+
+// ── Code samples ──────────────────────────────────────────────────────────────
+function renderCodeBlocks() {
+  const cfg = getCfg();
+  const selected = allFlags.filter(f => selectedKeys.has(f.key));
+  el('code-count').textContent = selected.length;
+  if (!selected.length) { el('code-blocks').innerHTML = ''; el('code-empty').style.display = ''; return; }
+  el('code-empty').style.display = 'none';
+  const token = v('mp-token') || 'YOUR_PROJECT_TOKEN';
+
+  el('code-blocks').innerHTML = selected.map(f => {
+    const sdk = flagSdks[f.key] || 'javascript';
+    const sdkLabel = SDKS.find(s => s.id === sdk)?.label || sdk;
+    const rt = flagRuleType(f, cfg.optEnv);
+    const variants = buildVariantNames(f, cfg.optEnv);
+    const modes = getEvalModes(sdk);
+    const currentMode = getEvalMode(f.key, sdk);
+    const modeObj = modes.find(m => m.id === currentMode) || modes[0];
+
+    const modeOpts = modes.map(m =>
+      `<option value="${m.id}" ${m.id === currentMode ? 'selected' : ''}>${m.label}</option>`
+    ).join('');
+
+    const snippets = generateSnippets(sdk, currentMode, f.key, variants, token);
+
+    return `<div class="code-flag-block" id="block-${f.key}">
+      <div class="code-flag-header">
+        <span class="flag-key">${f.key}</span>
+        ${ruleTypePill(rt)}
+        <span class="flag-sdk">${sdkLabel}</span>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+          <label style="font-size:11px;color:var(--text3);white-space:nowrap">Eval mode:</label>
+          <select class="sdk-select" style="max-width:220px" onchange="setEvalMode('${f.key}','${sdk}',this.value)">${modeOpts}</select>
+          <button class="btn btn-sm btn-icon" onclick="copyAllSnippets('${f.key}')" title="Copy all">⎘ All</button>
+        </div>
+      </div>
+      <div style="padding:8px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">
+        ℹ ${modeObj.desc}
+      </div>
+      ${renderSnippetPanels(f.key, snippets)}
+    </div>`;
+  }).join('');
+}
+
+function renderSnippetPanels(flagKey, snippets) {
+  const panels = [
+    { id: 'init',     label: '1 · SDK init',         icon: '⚙' },
+    { id: 'eval',     label: '2 · Flag retrieval',    icon: '⚑' },
+    { id: 'exposure', label: '3 · Exposure tracking', icon: '◎' },
+  ];
+  return panels.map(p => `
+    <div style="border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;background:var(--bg)">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">${p.icon} ${p.label}</span>
+        <button class="btn btn-sm btn-icon" onclick="copyCode('${flagKey}-${p.id}')" title="Copy">⎘</button>
+      </div>
+      <pre class="code-pre" id="${flagKey}-${p.id}" style="border-radius:0">${snippets[p.id]}</pre>
+    </div>`
+  ).join('');
+}
+
+function setEvalMode(flagKey, sdk, mode) {
+  flagEvalModes[flagKey] = mode;
+  // Re-render just this flag's block
+  const cfg = getCfg();
+  const token = v('mp-token') || 'YOUR_PROJECT_TOKEN';
+  const f = allFlags.find(f => f.key === flagKey);
+  if (!f) return;
+  const variants = buildVariantNames(f, cfg.optEnv);
+  const modes = getEvalModes(sdk);
+  const modeObj = modes.find(m => m.id === mode) || modes[0];
+  const snippets = generateSnippets(sdk, mode, flagKey, variants, token);
+  const descDiv = document.querySelector(`#block-${flagKey} [style*="ℹ"]`);
+  if (descDiv) descDiv.textContent = `ℹ ${modeObj.desc}`;
+  // Update all three panels
+  ['init','eval','exposure'].forEach(panel => {
+    const pre = el(`${flagKey}-${panel}`);
+    if (pre) pre.innerHTML = snippets[panel];
+  });
+}
+
+function copyAllSnippets(flagKey) {
+  const text = ['init','eval','exposure'].map(p => {
+    const pre = el(`${flagKey}-${p}`);
+    return pre ? pre.innerText : '';
+  }).join('\n\n// ─────────────────────────────────\n\n');
+  navigator.clipboard.writeText(text);
+}
+
+function buildVariantNames(flag, env) {
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  const allRules = flag.environments?.[env]?.rules_detail ?? [];
+  const treatments = [];
+  for (const rule of allRules) {
+    const varNames = rule.variation_names ?? [];
+    varNames.filter(n => n.toLowerCase() !== 'off').forEach(n => {
+      const key = n.toLowerCase().replace(/\s+/g,'_');
+      if (!treatments.find(t => t.optKey === key)) treatments.push({ optKey: key, name: n });
+    });
+  }
+  if (!treatments.length) return [{ optKey: 'on', mpKey: 'treatment', name: 'On' }];
+  return treatments.map((t, i) => ({
+    ...t,
+    mpKey: treatments.length === 1 ? 'treatment' : `treatment_${letters[i] ?? i}`
+  }));
+}
+
+// ── generateSnippets: returns { init, eval, exposure } HTML strings ────────────
+function generateSnippets(sdk, mode, flagKey, variants, token) {
+  const fallback = 'control';
+  const variantList = ['control', ...variants.map(v => v.mpKey)];
+  const switchCases = variantList.map(k =>
+    `  <span class="kw">case</span> <span class="str">'${k}'</span>:\n    <span class="cm">// ${k} experience</span>\n    <span class="kw">break</span>;`
+  ).join('\n');
+  const switchCasesDQ = variantList.map(k =>
+    `  <span class="kw">case</span> <span class="str">"${k}"</span>:\n      <span class="cm">// ${k} experience</span>\n      <span class="kw">break</span>;`
+  ).join('\n');
+
+  // ── JavaScript (Web) ────────────────────────────────────────────────────────
+  if (sdk === 'javascript') {
+    const persistenceBlock = mode === 'networkOnly' ? '' :
+      mode === 'networkFirst'
+        ? `      persistence: { variantLookupPolicy: <span class="str">'networkFirst'</span>, persistenceTtlMs: <span class="num">86400000</span> }`
+        : `      persistence: { variantLookupPolicy: <span class="str">'persistenceUntilNetworkSuccess'</span>, persistenceTtlMs: <span class="num">86400000</span> }`;
+
+    const initCode = `<span class="cm">// npm install mixpanel-browser (min v2.79.0)</span>
+<span class="kw">import</span> mixpanel <span class="kw">from</span> <span class="str">'mixpanel-browser'</span>;
+
+mixpanel.<span class="fn">init</span>(<span class="str">'${token}'</span>, {
+  flags: {
+    enabled: <span class="kw">true</span>${persistenceBlock ? ',\n    ' + persistenceBlock : ''}
+  }
+});`;
+
+    const isSync = mode === 'persistenceUntilNetworkSuccess';
+    const evalCode = isSync
+      ? `<span class="cm">// Sync — returns persisted value immediately (IndexedDB)</span>
+<span class="kw">const</span> variant = mixpanel.flags.<span class="fn">getVariantValueSync</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>);
+
+<span class="kw">switch</span> (variant) {
+${switchCases}
+  <span class="kw">default</span>:
+    <span class="cm">// fallback — serve control</span>
+}`
+      : `<span class="cm">// Async — awaits network response${mode === 'networkFirst' ? ' (IndexedDB fallback if network fails)' : ''}</span>
+<span class="kw">const</span> variant = <span class="kw">await</span> mixpanel.flags.<span class="fn">getVariantValue</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>);
+
+<span class="kw">switch</span> (variant) {
+${switchCases}
+  <span class="kw">default</span>:
+    <span class="cm">// fallback — serve control</span>
+}`;
+
+    const exposureCode = `<span class="cm">// Exposure is tracked automatically when getVariantValue is called.</span>
+<span class="cm">// To track manually (e.g. only when the feature is actually rendered):</span>
+<span class="cm">// 1. Suppress auto-tracking by passing false as the 3rd argument:</span>
+<span class="kw">const</span> variant = ${isSync ? '' : '<span class="kw">await</span> '}mixpanel.flags.<span class="fn">${isSync ? 'getVariantValueSync' : 'getVariantValue'}</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>, <span class="kw">false</span>);
+
+<span class="cm">// 2. Then call trackExposureEvent when the user actually sees the feature:</span>
+mixpanel.flags.<span class="fn">trackExposureEvent</span>(<span class="str">'${flagKey}'</span>, variant);`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── Node.js ─────────────────────────────────────────────────────────────────
+  if (sdk === 'nodejs') {
+    const isLocal = mode === 'local';
+    const initCode = isLocal
+      ? `<span class="cm">// npm install mixpanel (min v0.20.0)</span>
+<span class="kw">const</span> Mixpanel = <span class="fn">require</span>(<span class="str">'mixpanel'</span>);
+<span class="kw">const</span> mp = Mixpanel.<span class="fn">init</span>(<span class="str">'${token}'</span>, {
+  local_flags_config: {
+    enable_polling: <span class="kw">true</span>,
+    polling_interval_in_seconds: <span class="num">60</span>
+  }
+});
+
+<span class="cm">// Call once at app startup — begins background polling</span>
+<span class="kw">await</span> mp.local_flags.<span class="fn">startPollingForDefinitions</span>();`
+      : `<span class="cm">// npm install mixpanel (min v0.20.0)</span>
+<span class="kw">const</span> Mixpanel = <span class="fn">require</span>(<span class="str">'mixpanel'</span>);
+<span class="kw">const</span> mp = Mixpanel.<span class="fn">init</span>(<span class="str">'${token}'</span>, {
+  remote_flags_config: {
+    api_host: <span class="str">'api.mixpanel.com'</span>,
+    request_timeout_in_seconds: <span class="num">5</span>
+  }
+});
+<span class="cm">// No startup call needed — each evaluation makes a network request</span>`;
+
+    const evalCode = isLocal
+      ? `<span class="cm">// Synchronous — reads from in-memory cache populated by polling</span>
+<span class="kw">const</span> variant = mp.local_flags.<span class="fn">getVariantValue</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>, {
+  distinct_id: userId
+});
+
+<span class="kw">if</span> (variant === <span class="str">'treatment'</span>) {
+  <span class="cm">// treatment experience</span>
+} <span class="kw">else</span> {
+  <span class="cm">// control / fallback experience</span>
+}`
+      : `<span class="cm">// Async — makes a network call to Mixpanel servers per evaluation</span>
+<span class="kw">const</span> variant = <span class="kw">await</span> mp.remote_flags.<span class="fn">getVariantValue</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>, {
+  distinct_id: userId
+});
+
+<span class="kw">if</span> (variant === <span class="str">'treatment'</span>) {
+  <span class="cm">// treatment experience</span>
+} <span class="kw">else</span> {
+  <span class="cm">// control / fallback experience</span>
+}`;
+
+    const ns = isLocal ? 'local_flags' : 'remote_flags';
+    const awaitKw = isLocal ? '' : '<span class="kw">await</span> ';
+    const exposureCode = `<span class="cm">// Exposure is tracked automatically. To track manually:</span>
+<span class="cm">// 1. Pass false as 4th argument to suppress auto-tracking:</span>
+<span class="kw">const</span> variant = ${awaitKw}mp.${ns}.<span class="fn">getVariantValue</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>, { distinct_id: userId }, <span class="kw">false</span>);
+
+<span class="cm">// 2. Track exposure when the feature is actually shown to the user:</span>
+mp.${ns}.<span class="fn">trackExposureEvent</span>(<span class="str">'${flagKey}'</span>, variant, { distinct_id: userId });`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── Python ──────────────────────────────────────────────────────────────────
+  if (sdk === 'python') {
+    const isLocal = mode === 'local';
+    const initCode = isLocal
+      ? `<span class="cm"># pip install mixpanel (min v5.1.0)</span>
+<span class="kw">import</span> mixpanel
+
+local_config = mixpanel.<span class="fn">LocalFlagsConfig</span>(
+    api_host=<span class="str">"https://api.mixpanel.com"</span>,
+    enable_polling=<span class="kw">True</span>,
+    poll_interval=<span class="num">60</span>
+)
+mp = mixpanel.<span class="fn">Mixpanel</span>(<span class="str">"${token}"</span>, local_flags_config=local_config)
+
+<span class="cm"># Call once at startup — begins background polling</span>
+mp.local_flags.<span class="fn">start_polling_for_definitions</span>()`
+      : `<span class="cm"># pip install mixpanel (min v5.1.0)</span>
+<span class="kw">import</span> mixpanel
+
+remote_config = mixpanel.<span class="fn">RemoteFlagsConfig</span>(
+    api_host=<span class="str">"https://api.mixpanel.com"</span>,
+    request_timeout=<span class="num">5</span>
+)
+mp = mixpanel.<span class="fn">Mixpanel</span>(<span class="str">"${token}"</span>, remote_flags_config=remote_config)
+<span class="cm"># No startup call needed — each evaluation makes a network request</span>`;
+
+    const ns = isLocal ? 'local_flags' : 'remote_flags';
+    const evalCode = `<span class="cm"># ${isLocal ? 'Synchronous — reads from in-memory cache' : 'Async — network call per evaluation'}</span>
+variant = mp.${ns}.<span class="fn">get_variant_value</span>(
+    flag_key=<span class="str">"${flagKey}"</span>,
+    fallback_variant=<span class="str">"${fallback}"</span>,
+    user_context={<span class="str">"distinct_id"</span>: user_id}
+)
+
+<span class="kw">if</span> variant == <span class="str">"treatment"</span>:
+    <span class="cm"># treatment experience</span>
+<span class="kw">else</span>:
+    <span class="cm"># control / fallback experience</span>`;
+
+    const exposureCode = `<span class="cm"># Exposure tracked automatically. To track manually:</span>
+<span class="cm"># Pass track_exposure=False to suppress auto-tracking:</span>
+variant = mp.${ns}.<span class="fn">get_variant_value</span>(
+    flag_key=<span class="str">"${flagKey}"</span>,
+    fallback_variant=<span class="str">"${fallback}"</span>,
+    user_context={<span class="str">"distinct_id"</span>: user_id},
+    track_exposure=<span class="kw">False</span>
+)
+
+<span class="cm"># Track exposure when the feature is actually rendered:</span>
+mp.${ns}.<span class="fn">track_exposure_event</span>(<span class="str">"${flagKey}"</span>, variant, {<span class="str">"distinct_id"</span>: user_id})`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── Swift ───────────────────────────────────────────────────────────────────
+  if (sdk === 'swift') {
+    const policyMap = {
+      networkOnly: '',
+      networkFirst: `        variantLookupPolicy: .networkFirst()`,
+      persistenceUntilNetworkSuccess: `        variantLookupPolicy: .persistenceUntilNetworkSuccess()`,
+    };
+    const policyStr = policyMap[mode] || '';
+    const initCode = `<span class="cm">// Swift Package Manager: mixpanel/mixpanel-swift (min v5.1.3)</span>
+<span class="kw">import</span> Mixpanel
+
+Mixpanel.<span class="fn">initialize</span>(
+    token: <span class="str">"${token}"</span>,
+    options: MixpanelOptions(
+        featureFlagOptions: FeatureFlagOptions(
+            enabled: <span class="kw">true</span>${policyStr ? ',\n            ' + policyStr : ''}
+        )
+    )
+)`;
+
+    const isSync = mode === 'persistenceUntilNetworkSuccess';
+    const evalCode = isSync
+      ? `<span class="cm">// Sync — returns persisted value from UserDefaults immediately</span>
+<span class="kw">let</span> variant = Mixpanel.mainInstance().flags.<span class="fn">getVariantValueSync</span>(<span class="str">"${flagKey}"</span>, fallbackValue: <span class="str">"${fallback}"</span>)
+
+<span class="kw">switch</span> variant {
+${variantList.map(k=>`<span class="kw">case</span> <span class="str">"${k}"</span>:\n    <span class="cm">// ${k} experience</span>`).join('\n')}
+<span class="kw">default</span>:
+    <span class="cm">// fallback</span>
+}`
+      : `<span class="cm">// Async — awaits network response${mode === 'networkFirst' ? ' (falls back to UserDefaults if network fails)' : ''}</span>
+Mixpanel.mainInstance().flags.<span class="fn">getVariantValue</span>(<span class="str">"${flagKey}"</span>, fallbackValue: <span class="str">"${fallback}"</span>) { variant <span class="kw">in</span>
+    <span class="kw">switch</span> variant {
+    ${variantList.map(k=>`<span class="kw">case</span> <span class="str">"${k}"</span>:\n        <span class="cm">// ${k} experience</span>`).join('\n    ')}
+    <span class="kw">default</span>:
+        <span class="cm">// fallback</span>
+    }
+}`;
+
+    const exposureCode = `<span class="cm">// Exposure tracked automatically on getVariantValue call.</span>
+<span class="cm">// To track manually, pass trackExposure: false then call:</span>
+Mixpanel.mainInstance().flags.<span class="fn">getVariantValue</span>(<span class="str">"${flagKey}"</span>, fallbackValue: <span class="str">"${fallback}"</span>, trackExposure: <span class="kw">false</span>) { variant <span class="kw">in</span>
+    <span class="cm">// When ready to expose the user:</span>
+    Mixpanel.mainInstance().flags.<span class="fn">trackExposureEvent</span>(flagKey: <span class="str">"${flagKey}"</span>, variant: variant)
+}`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── Android ─────────────────────────────────────────────────────────────────
+  if (sdk === 'android') {
+    const policyMap = {
+      networkOnly: '',
+      networkFirst: `        .variantLookupPolicy(VariantLookupPolicy.networkFirst())`,
+      persistenceUntilNetworkSuccess: `        .variantLookupPolicy(VariantLookupPolicy.persistenceUntilNetworkSuccess())`,
+    };
+    const policyStr = policyMap[mode] || '';
+    const initCode = `<span class="cm">// build.gradle: implementation 'com.mixpanel.android:mixpanel-android:7.x.x'</span>
+FeatureFlagOptions ffOptions = <span class="kw">new</span> FeatureFlagOptions.Builder()
+    .<span class="fn">enabled</span>(<span class="kw">true</span>)${policyStr ? '\n    ' + policyStr : ''}
+    .<span class="fn">build</span>();
+MixpanelOptions options = <span class="kw">new</span> MixpanelOptions.Builder()
+    .<span class="fn">featureFlagOptions</span>(ffOptions).<span class="fn">build</span>();
+MixpanelAPI mixpanel = MixpanelAPI.<span class="fn">getInstance</span>(context, <span class="str">"${token}"</span>, <span class="kw">false</span>, options);`;
+
+    const isSync = mode === 'persistenceUntilNetworkSuccess';
+    const evalCode = isSync
+      ? `<span class="cm">// Sync — returns persisted value immediately</span>
+String variant = mixpanel.getFeatureFlags().<span class="fn">getVariantValueSync</span>(<span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>);
+<span class="kw">if</span> (<span class="str">"treatment"</span>.<span class="fn">equals</span>(variant)) {
+    <span class="cm">// treatment experience</span>
+} <span class="kw">else</span> { <span class="cm">// control</span> }`
+      : `<span class="cm">// Async — callback fires when network response arrives</span>
+mixpanel.getFeatureFlags().<span class="fn">getVariantValue</span>(<span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>,
+    <span class="kw">new</span> FlagCallback&lt;String&gt;() {
+        <span class="kw">public void</span> <span class="fn">onResult</span>(String variant) {
+            <span class="kw">if</span> (<span class="str">"treatment"</span>.<span class="fn">equals</span>(variant)) {
+                <span class="cm">// treatment experience</span>
+            } <span class="kw">else</span> { <span class="cm">// control</span> }
+        }
+    }
+);`;
+
+    const exposureCode = `<span class="cm">// Exposure tracked automatically. To track manually:</span>
+mixpanel.getFeatureFlags().<span class="fn">getVariantValue</span>(<span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>, <span class="kw">false</span>,
+    <span class="kw">new</span> FlagCallback&lt;String&gt;() {
+        <span class="kw">public void</span> <span class="fn">onResult</span>(String variant) {
+            <span class="cm">// When feature is actually shown:</span>
+            mixpanel.getFeatureFlags().<span class="fn">trackExposureEvent</span>(<span class="str">"${flagKey}"</span>, variant);
+        }
+    }
+);`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── React Native ────────────────────────────────────────────────────────────
+  if (sdk === 'reactnative') {
+    const isSync = mode === 'sync';
+    const initCode = `<span class="cm">// npm install mixpanel-react-native@beta (min v3.2.0-beta.3)</span>
+<span class="kw">import</span> { Mixpanel } <span class="kw">from</span> <span class="str">'mixpanel-react-native'</span>;
+
+<span class="kw">const</span> mixpanel = <span class="kw">new</span> <span class="fn">Mixpanel</span>(<span class="str">"${token}"</span>);
+<span class="kw">await</span> mixpanel.<span class="fn">init</span>({ featureFlagsOptions: { enabled: <span class="kw">true</span> } });`;
+
+    const evalCode = isSync
+      ? `<span class="cm">// Sync — requires flags to be loaded first</span>
+<span class="kw">if</span> (mixpanel.flags.<span class="fn">areFlagsReady</span>()) {
+  <span class="kw">const</span> variant = mixpanel.flags.<span class="fn">getVariantValueSync</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>);
+  <span class="kw">switch</span> (variant) {
+${switchCases}
+    <span class="kw">default</span>: <span class="cm">// fallback</span>
+  }
+} <span class="kw">else</span> {
+  <span class="cm">// Flags not yet loaded — show fallback or wait for areFlagsReady()</span>
+}`
+      : `<span class="cm">// Async — awaits network response</span>
+<span class="kw">const</span> [variant, setVariant] = <span class="fn">useState</span>(<span class="str">'${fallback}'</span>);
+
+<span class="fn">useEffect</span>(() => {
+  mixpanel.flags.<span class="fn">getVariantValue</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>).<span class="fn">then</span>(setVariant);
+}, []);
+
+<span class="kw">switch</span> (variant) {
+${switchCases}
+  <span class="kw">default</span>: <span class="cm">// fallback</span>
+}`;
+
+    const exposureCode = `<span class="cm">// Exposure tracked automatically on evaluation.</span>
+<span class="cm">// To suppress and track manually:</span>
+<span class="kw">const</span> variant = ${isSync ? '' : '<span class="kw">await</span> '}mixpanel.flags.<span class="fn">${isSync ? 'getVariantValueSync' : 'getVariantValue'}</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>, <span class="kw">false</span>);
+
+<span class="cm">// When the feature is actually rendered:</span>
+mixpanel.flags.<span class="fn">trackExposureEvent</span>(<span class="str">'${flagKey}'</span>, variant);`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── Flutter ─────────────────────────────────────────────────────────────────
+  if (sdk === 'flutter') {
+    const policyMap = {
+      networkOnly: '',
+      networkFirst: `    variantLookupPolicy: VariantLookupPolicy.networkFirst(),`,
+      persistenceUntilNetworkSuccess: `    variantLookupPolicy: VariantLookupPolicy.persistenceUntilNetworkSuccess(),`,
+    };
+    const policyStr = policyMap[mode] || '';
+    const initCode = `<span class="cm">// pubspec.yaml: mixpanel_flutter: ^2.7.0</span>
+<span class="kw">import</span> <span class="str">'package:mixpanel_flutter/mixpanel_flutter.dart'</span>;
+
+Mixpanel mixpanel = <span class="kw">await</span> Mixpanel.<span class="fn">init</span>(
+  <span class="str">"${token}"</span>,
+  trackAutomaticEvents: <span class="kw">false</span>,
+  featureFlags: FeatureFlagsConfig(
+    enabled: <span class="kw">true</span>${policyStr ? ',\n    ' + policyStr : ''}
+  ),
+);`;
+
+    const evalCode = `<span class="cm">// ${mode === 'persistenceUntilNetworkSuccess' ? 'Returns persisted value immediately; background fetch refreshes' : 'Async — awaits network response'}</span>
+<span class="kw">final</span> variant = <span class="kw">await</span> mixpanel.getFeatureFlags().<span class="fn">getVariantValue</span>(
+  <span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>
+);
+
+<span class="kw">if</span> (variant == <span class="str">"treatment"</span>) {
+  <span class="cm">// treatment experience</span>
+} <span class="kw">else</span> {
+  <span class="cm">// control / fallback experience</span>
+}`;
+
+    const exposureCode = `<span class="cm">// Exposure tracked automatically. To track manually:</span>
+<span class="kw">final</span> variant = <span class="kw">await</span> mixpanel.getFeatureFlags().<span class="fn">getVariantValue</span>(
+  <span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>, trackExposure: <span class="kw">false</span>
+);
+
+<span class="cm">// When feature is actually rendered:</span>
+mixpanel.getFeatureFlags().<span class="fn">trackExposureEvent</span>(<span class="str">"${flagKey}"</span>, variant);`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── Go ───────────────────────────────────────────────────────────────────────
+  if (sdk === 'go') {
+    const initCode = `<span class="cm">// go get github.com/mixpanel/mixpanel-go</span>
+<span class="kw">package</span> main
+<span class="kw">import</span> <span class="str">"github.com/mixpanel/mixpanel-go"</span>
+
+mp := mixpanel.<span class="fn">NewApiClient</span>(<span class="str">"${token}"</span>)
+<span class="kw">defer</span> mp.<span class="fn">Close</span>()
+<span class="cm">// StartLocalEvaluation polls Mixpanel for flag definitions in background</span>
+mp.Flags.<span class="fn">StartLocalEvaluation</span>(ctx)`;
+
+    const evalCode = `<span class="cm">// Synchronous — reads from in-memory local cache</span>
+variant, err := mp.Flags.<span class="fn">GetVariantValue</span>(ctx, <span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>, mixpanel.FlagContext{
+    DistinctID: userId,
+})
+<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="cm">/* handle error, serve fallback */</span> }
+
+<span class="kw">switch</span> variant {
+${variantList.map(k=>`<span class="kw">case</span> <span class="str">"${k}"</span>:\n    <span class="cm">// ${k} experience</span>`).join('\n')}
+}`;
+
+    const exposureCode = `<span class="cm">// Exposure tracked automatically. To track manually:</span>
+variant, _ := mp.Flags.<span class="fn">GetVariantValue</span>(ctx, <span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>,
+    mixpanel.FlagContext{DistinctID: userId}, mixpanel.WithTrackExposure(<span class="kw">false</span>))
+
+<span class="cm">// When feature is rendered:</span>
+mp.Flags.<span class="fn">TrackExposureEvent</span>(ctx, <span class="str">"${flagKey}"</span>, variant, mixpanel.FlagContext{DistinctID: userId})`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── Ruby ─────────────────────────────────────────────────────────────────────
+  if (sdk === 'ruby') {
+    const initCode = `<span class="cm"># gem install mixpanel-ruby</span>
+<span class="kw">require</span> <span class="str">'mixpanel-ruby'</span>
+
+mp = Mixpanel::Flags.<span class="fn">new</span>(<span class="str">'${token}'</span>, local_eval: <span class="kw">true</span>, poll_interval: <span class="num">60</span>)
+<span class="cm"># Call once at startup — begins background polling</span>
+mp.local_flags.<span class="fn">start_polling</span>`;
+
+    const evalCode = `<span class="cm"># Synchronous — reads from in-memory cache</span>
+variant = mp.local_flags.<span class="fn">get_variant_value</span>(
+  flag_key: <span class="str">'${flagKey}'</span>,
+  fallback: <span class="str">'${fallback}'</span>,
+  context: { distinct_id: user_id }
+)
+
+<span class="kw">case</span> variant
+<span class="kw">when</span> <span class="str">'treatment'</span> <span class="kw">then</span> <span class="cm"># treatment experience</span>
+<span class="kw">else</span>               <span class="cm"># control / fallback experience</span>
+<span class="kw">end</span>`;
+
+    const exposureCode = `<span class="cm"># Exposure tracked automatically. To track manually:</span>
+variant = mp.local_flags.<span class="fn">get_variant_value</span>(
+  flag_key: <span class="str">'${flagKey}'</span>, fallback: <span class="str">'${fallback}'</span>,
+  context: { distinct_id: user_id }, track_exposure: <span class="kw">false</span>
+)
+
+<span class="cm"># When feature is actually rendered:</span>
+mp.local_flags.<span class="fn">track_exposure_event</span>(<span class="str">'${flagKey}'</span>, variant, { distinct_id: user_id })`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  // ── Java ─────────────────────────────────────────────────────────────────────
+  if (sdk === 'java') {
+    const initCode = `<span class="cm">// Maven: com.mixpanel:mixpanel-java (min v1.5.0)</span>
+MixpanelFlagsConfig config = <span class="kw">new</span> MixpanelFlagsConfig.Builder()
+    .<span class="fn">localEvaluation</span>(<span class="kw">true</span>)
+    .<span class="fn">pollInterval</span>(<span class="num">60</span>)
+    .<span class="fn">build</span>();
+MixpanelFlags flags = <span class="kw">new</span> <span class="fn">MixpanelFlags</span>(<span class="str">"${token}"</span>, config);
+<span class="cm">// Call once at startup — begins background polling</span>
+flags.<span class="fn">startPolling</span>();`;
+
+    const evalCode = `<span class="cm">// Synchronous — reads from in-memory local cache</span>
+String variant = flags.<span class="fn">getVariantValue</span>(<span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>,
+    FlagContext.<span class="fn">builder</span>().<span class="fn">distinctId</span>(userId).<span class="fn">build</span>()
+);
+
+<span class="kw">switch</span> (variant) {
+${switchCasesDQ}
+  <span class="kw">default</span>:
+      <span class="cm">// control fallback</span>
+}`;
+
+    const exposureCode = `<span class="cm">// Exposure tracked automatically. To track manually:</span>
+String variant = flags.<span class="fn">getVariantValue</span>(<span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>,
+    FlagContext.<span class="fn">builder</span>().<span class="fn">distinctId</span>(userId).<span class="fn">build</span>(), <span class="kw">false</span>
+);
+
+<span class="cm">// When feature is actually rendered:</span>
+flags.<span class="fn">trackExposureEvent</span>(<span class="str">"${flagKey}"</span>, variant,
+    FlagContext.<span class="fn">builder</span>().<span class="fn">distinctId</span>(userId).<span class="fn">build</span>()
+);`;
+
+    return { init: initCode, eval: evalCode, exposure: exposureCode };
+  }
+
+  return { init: '// SDK not recognised', eval: '', exposure: '' };
+}
+
+// Legacy shim so exportCodeSamples still works
+function generateCode(sdk, flagKey, variants, token) {
+  const mode = getEvalMode(flagKey, sdk);
+  const s = generateSnippets(sdk, mode, flagKey, variants, token);
+  return [s.init, s.eval, s.exposure]
+    .filter(Boolean)
+    .join('\n\n// ─── ─── ─── ─── ─── ───\n\n');
+}
+
+
+// ── Export functions ──────────────────────────────────────────────────────────
+function exportCSV() {
+  const cfg = getCfg();
+  const env = cfg.optEnv;
+  const rows = [['Key','Name','Status','Rule type','Enabled environments','Variables','SDK','Selected for import']];
+  allFlags.forEach(f => {
+    const rt = flagRuleType(f, env);
+    const vc = Array.isArray(f.variable_definitions) ? f.variable_definitions.length : Object.keys(f.variable_definitions||{}).length;
+    const envEnabled = Object.keys(f.environments||{}).filter(e=>f.environments[e].enabled).join('; ') || '—';
+    const sdk = SDKS.find(s=>s.id===(flagSdks[f.key]||'javascript'))?.label||'JavaScript';
+    rows.push([f.key, f.name||'', flagStatus(f), rt, envEnabled, vc, sdk, selectedKeys.has(f.key)?'Yes':'No']);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  download('optimizely_flags_migration_report.csv', csv, 'text/csv');
+}
+
+function exportJSON() {
+  const cfg = getCfg();
+  const env = cfg.optEnv;
+  const data = allFlags.map(f => ({
+    key: f.key, name: f.name, status: flagStatus(f),
+    ruleType: flagRuleType(f, env),
+    enabledEnvironments: Object.keys(f.environments||{}).filter(e=>f.environments[e].enabled),
+    variableCount: Array.isArray(f.variable_definitions)?f.variable_definitions.length:Object.keys(f.variable_definitions||{}).length,
+    assignedSdk: SDKS.find(s=>s.id===(flagSdks[f.key]||'javascript'))?.label||'JavaScript',
+    selectedForImport: selectedKeys.has(f.key),
+  }));
+  download('optimizely_flags_migration_report.json', JSON.stringify({ generatedAt: new Date().toISOString(), totalFlags: allFlags.length, selectedForImport: selectedKeys.size, flags: data }, null, 2), 'application/json');
+}
+
+function exportMarkdown() {
+  const cfg = getCfg();
+  const env = cfg.optEnv;
+  let md = `# Optimizely → Mixpanel Flag Migration Report\n\n`;
+  md += `**Generated:** ${new Date().toLocaleString()}  \n`;
+  md += `**Total flags:** ${allFlags.length}  \n`;
+  md += `**Selected for import:** ${selectedKeys.size}  \n\n`;
+  md += `| Key | Name | Status | Rule type | SDK | Import |\n`;
+  md += `|-----|------|--------|-----------|-----|--------|\n`;
+  allFlags.forEach(f => {
+    const rt = flagRuleType(f, env);
+    const sdk = SDKS.find(s=>s.id===(flagSdks[f.key]||'javascript'))?.label||'JavaScript';
+    md += `| \`${f.key}\` | ${f.name||'—'} | ${flagStatus(f)} | ${rt} | ${sdk} | ${selectedKeys.has(f.key)?'✓':'—'} |\n`;
+  });
+  download('optimizely_flags_migration_report.md', md, 'text/markdown');
+}
+
+function exportCodeSamples() {
+  const cfg = getCfg();
+  const token = v('mp-token') || 'YOUR_PROJECT_TOKEN';
+  const selected = allFlags.filter(f => selectedKeys.has(f.key));
+  let md = `# Mixpanel Feature Flag Code Samples\n\n`;
+  md += `**Generated:** ${new Date().toLocaleString()}  \n`;
+  md += `**Project token:** \`${token}\`  \n\n---\n\n`;
+  selected.forEach(f => {
+    const sdk = flagSdks[f.key] || 'javascript';
+    const sdkLabel = SDKS.find(s=>s.id===sdk)?.label||sdk;
+    const variants = buildVariantNames(f, cfg.optEnv);
+    // Strip HTML tags for markdown export
+    const rawCode = generateCode(sdk, f.key, variants, token).replace(/<[^>]+>/g, '');
+    const lang = { javascript:'javascript', nodejs:'javascript', python:'python', swift:'swift', android:'java', reactnative:'javascript', flutter:'dart', go:'go', ruby:'ruby', java:'java' }[sdk]||'';
+    md += `## \`${f.key}\`\n\n**SDK:** ${sdkLabel}  \n**Rule type:** ${flagRuleType(f, cfg.optEnv)}  \n\n\`\`\`${lang}\n${rawCode}\n\`\`\`\n\n---\n\n`;
+  });
+  download('mixpanel_flag_code_samples.md', md, 'text/markdown');
+}
+
+function copyCode(id) {
+  const raw = el(id).innerText;
+  navigator.clipboard.writeText(raw);
+}
+
+function download(filename, content, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+  a.download = filename; a.click();
+}
+
+// ── Import ────────────────────────────────────────────────────────────────────
+async function runImport() {
+  const cfg = getCfg();
+  const btn = el('btn-run'); btn.disabled = true;
+  const selected = allFlags.filter(f => selectedKeys.has(f.key));
+  let expOk=0, flagOk=0, fail=0;
+
+  el('s-total').textContent = selected.length;
+  el('import-log').innerHTML = '';
+  el('progress-bar').style.width = '0%';
+
+  for (let i = 0; i < selected.length; i++) {
+    const flag = selected[i];
+    log(`→ ${flag.key}`, 'info');
+    const rt = flagRuleType(flag, cfg.optEnv);
+    let fullRuleset = null, experimentId = null;
+
+    if (rt !== 'plain') {
+      try { fullRuleset = await doFetchRuleset(cfg, flag.key); if (!fullRuleset) log(`   ⚠ Ruleset fetch failed`, 'warn'); }
+      catch(e) { log(`   ⚠ ${e.message}`, 'warn'); }
+      await sleep(80);
+    }
+
+    if (rt === 'experiment') {
+      const abRules = (fullRuleset ? Object.values(fullRuleset.rules??{}) : flag.environments?.[cfg.optEnv]?.rules_detail??[]).filter(r=>r.type==='a/b');
+      if (abRules.length) {
+        const expP = buildExperimentPayload(flag, abRules);
+        if (cfg.dryRun) { log(`   [DRY RUN] experiment: "${expP.name}"`, 'warn'); expOk++; }
+        else {
+          const res = await fetch(`https://${cfg.mpRegion}.com/api/app/workspaces/${cfg.mpWorkspace}/experiments`, { method:'POST', headers:authHeaders(), body:JSON.stringify(expP) });
+          const body = await res.json().catch(()=>({}));
+          if (res.ok) { experimentId=body?.id??body?.experiment_id??null; log(`   ✓ Experiment created${experimentId?` (${experimentId})`:''}`, 'ok'); expOk++; }
+          else { log(`   ✗ Experiment failed: ${body?.error??body?.message??'HTTP '+res.status}`, 'err'); fail++; }
+          await sleep(120);
+        }
+      }
+    }
+
+    const flagP = buildFlagPayload(flag, fullRuleset, experimentId, cfg);
+    if (cfg.dryRun) {
+      log(`   [DRY RUN] flag: ${flag.key}`, 'warn');
+      log(`   variants: ${flagP.ruleset.variants.map(v=>`${v.key}(${JSON.stringify(v.value)})`).join(', ')}`, 'warn');
+      flagOk++;
+    } else {
+      const res = await fetch(`https://${cfg.mpRegion}.com/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, { method:'POST', headers:authHeaders(), body:JSON.stringify(flagP) });
+      const body = await res.json().catch(()=>({}));
+      if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
+      else if (res.status===409) { log(`   ⏭ Skipped (already exists)`, 'warn'); flagOk++; }
+      else { log(`   ✗ Failed: ${body?.error??body?.message??'HTTP '+res.status}`, 'err'); fail++; }
+      await sleep(120);
+    }
+
+    el('s-exp').textContent=expOk; el('s-flag').textContent=flagOk; el('s-fail').textContent=fail;
+    el('progress-bar').style.width = `${Math.round(((i+1)/selected.length)*100)}%`;
+  }
+
+  log(`Done — ${expOk} experiments, ${flagOk} flags${fail?`, ${fail} failed`:''}`, fail?'err':'ok');
+  btn.disabled = false;
+}
+
+// ── Payload builders ──────────────────────────────────────────────────────────
+function buildRuleset(flag, fullRuleset, env) {
+  const allRules = fullRuleset ? Object.values(fullRuleset.rules ?? {}) : [];
+  function getControlKey(rule) {
+    const vars = Object.values(rule.variations ?? {});
+    if (rule.baseline_variation_id) { const m=vars.find(v=>v.variation_id===rule.baseline_variation_id); if(m) return m.key; }
+    if (vars.some(v=>v.key==='off')) return 'off';
+    return null;
+  }
+  const treatmentOptKeys = [], allTreatments = new Map();
+  for (const rule of allRules) {
+    const ck = getControlKey(rule);
+    for (const v of Object.values(rule.variations??{})) {
+      if (ck!==null && v.key===ck) continue;
+      if (!allTreatments.has(v.key)) { allTreatments.set(v.key,{name:v.name??v.key,pct:v.percentage_included??0}); treatmentOptKeys.push(v.key); }
+    }
+  }
+  if (!allTreatments.size) { allTreatments.set('__on__',{name:'On',pct:0}); treatmentOptKeys.push('__on__'); }
+  const letters='abcdefghijklmnopqrstuvwxyz';
+  const optToMp=new Map();
+  treatmentOptKeys.forEach((k,i)=>optToMp.set(k, treatmentOptKeys.length===1?'treatment':`treatment_${letters[i]??i}`));
+  const totalV=1+allTreatments.size, even=parseFloat((1/totalV).toFixed(6));
+  const variants=[
+    { key:'control', value:'control', is_control:true, split:even, description:'Control — Migrated from Optimizely' },
+    ...treatmentOptKeys.map(ok=>{ const mk=optToMp.get(ok),m=allTreatments.get(ok); return { key:mk, value:mk, is_control:false, split:even, description:`Treatment — Migrated from Optimizely. Original key: ${ok}, Variant: ${m.name}` }; })
+  ];
+  const treatmentKeys=new Set(treatmentOptKeys.map(k=>optToMp.get(k)));
+  const rollout=[];
+  for (const rule of allRules) {
+    const ck=getControlKey(rule);
+    const ts=Object.values(rule.variations??{}).filter(v=>(ck===null||v.key!==ck)&&optToMp.has(v.key));
+    const tp=ts.reduce((s,v)=>s+(v.percentage_included??0),0);
+    const rp=Math.min(tp/10000,1);
+    const vs={};
+    const wp=ts.filter(v=>(v.percentage_included??0)>0);
+    let rem=1.0;
+    wp.forEach((v,i)=>{ const mk=optToMp.get(v.key); if(i===wp.length-1){vs[mk]=parseFloat(rem.toFixed(6));}else{const s=tp>0?parseFloat((v.percentage_included/tp).toFixed(6)):parseFloat((1/wp.length).toFixed(6));vs[mk]=s;rem-=s;} });
+    if(!Object.keys(vs).length){const ks=Array.from(treatmentKeys);let r2=1.0;ks.forEach((k,i)=>{const s=parseFloat((1/ks.length).toFixed(6));vs[k]=i===ks.length-1?parseFloat(r2.toFixed(6)):s;r2-=s;});}
+    rollout.push({name:rule.name??rule.key??null,rollout_percentage:rp,variant_splits:vs});
+  }
+  if(!rollout.length){const fk=optToMp.get(treatmentOptKeys[0])??(treatmentOptKeys.length===1?'treatment':'treatment_a');rollout.push({rollout_percentage:0,variant_splits:{[fk]:1.0}});}
+  return {variants,rollout};
+}
+
+function buildFlagPayload(flag, fullRuleset, experimentId, cfg) {
+  const status=flag.archived?'archived':flag.enabled?'enabled':'disabled';
+  const vars=Array.isArray(flag.variable_definitions)?flag.variable_definitions:[];
+  const context=vars.length?trunc('Variables: '+vars.map(v=>`${v.key}:${v.type||'unknown'}`).join(', '),255):trunc(`Migrated from Optimizely. Key: ${flag.key}`,255);
+  const sdk=flagSdks[flag.key]||'javascript';
+  const servingMethod=SDKS.find(s=>s.id===sdk)?.serving||'server';
+  return{name:flag.name??flag.key,key:flag.key,description:flag.description??null,tags:Array.isArray(flag.tags)?flag.tags.map(String):[],status,context,serving_method:servingMethod,experiment_id:experimentId??null,ruleset:buildRuleset(flag,fullRuleset,cfg.optEnv)};
+}
+
+function buildExperimentPayload(flag, abRules) {
+  const r=abRules[0],allVars=Object.values(r.variations??{});
+  const ck=r.baseline_variation_id?allVars.find(v=>v.variation_id===r.baseline_variation_id)?.key??null:allVars.some(v=>v.key==='off')?'off':null;
+  const ts=ck?allVars.filter(v=>v.key!==ck):allVars;
+  const variants=ts.length?ts.map(v=>({name:v.name??v.key,description:`Original Optimizely key: ${v.key}`})):[{name:'Control'},{name:'Treatment'}];
+  const tp=Math.min(ts.reduce((s,v)=>s+(v.percentage_included??0),0)/10000,1);
+  return{name:trunc(`${flag.name??flag.key} — ${r.name??r.key}`,255),description:trunc(`Migrated from Optimizely. Flag: ${flag.key}, Rule: ${r.key}`,400),hypothesis:'',variants,metrics:[],settings:{traffic_fraction:tp}};
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const el=id=>document.getElementById(id);
+const v=id=>el(id)?.value?.trim()||'';
+const trunc=(s,m)=>s&&s.length>m?s.slice(0,m-1)+'…':(s||'');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+function getCfg() {
+  return { optToken:v('opt-token'), optProject:v('opt-project'), optEnv:v('opt-env')||'production', mpProject:v('mp-project'), mpWorkspace:v('mp-workspace'), mpRegion:v('mp-region')||'mixpanel', dryRun:el('dry-run').checked };
+}
+function authHeaders() {
+  return { Authorization:`Basic ${encodedAuth}`, 'Content-Type':'application/json', Accept:'application/json' };
+}
+function flagStatus(f) { return f.archived?'archived':f.enabled?'enabled':'disabled'; }
+function flagRuleType(f, env) {
+  const r=f.environments?.[env]?.rules_detail??[];
+  return r.some(x=>x.type==='a/b')?'experiment':r.some(x=>x.type==='targeted_delivery')?'rollout':'plain';
+}
+function statusPill(f) {
+  const s=flagStatus(f);
+  const cls={enabled:'pill-green',disabled:'pill-neutral',archived:'pill-red'}[s]||'pill-neutral';
+  return `<span class="pill ${cls}">${s}</span>`;
+}
+function ruleTypePill(t) {
+  if(t==='experiment') return '<span class="pill pill-purple">a/b</span>';
+  if(t==='rollout')    return '<span class="pill pill-teal">rollout</span>';
+  return '<span class="pill pill-neutral">—</span>';
+}
+function updateNavDone(id) {
+  const nav=document.querySelector(`[data-view="${id}"]`);
+  if(nav){nav.classList.add('done');const sn=el(`sn-${id}`);if(sn)sn.style.background='var(--mp-green)';}
+}
+function log(text, type='') {
+  const box=el('import-log');
+  const d=document.createElement('div');
+  if(type) d.className=type;
+  d.textContent=text;
+  box.appendChild(d);
+  box.scrollTop=box.scrollHeight;
+}
+function showErr(el, msg) {
+  el.innerHTML=`<div class="alert alert-error">${msg}</div>`;
+  el.style.display='';
+}
+</script>
+</body>
+</html>
