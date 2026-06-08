@@ -1,6 +1,418 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv="refresh" content="0; url=optimizely_mixpanel_migration.html" />
-  </head>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mixpanel Migration Tools</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20width%3D%22140%22%20height%3D%22140%22%20viewBox%3D%220%200%20140%20140%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M48.0089%2061.4121H61.3939C58.0516%2059.3212%2056.8002%2056.3908%2055.1212%2050.9576L50.0998%2032.3454C47.803%2023.9817%2045.918%2020.0059%2036.7149%2020.0059H17.4849V25.0272H20.2094C25.8485%2025.0272%2026.4821%2027.1181%2028.1612%2033.3908L32.5489%2049.7062C34.8457%2057.658%2038.4098%2061.4121%2048.0247%2061.4121H48.0089ZM78.9765%2061.4121H92.3456C101.961%2061.4121%20105.303%2057.6422%20107.616%2049.7062L112.003%2033.3908C113.682%2027.1181%20114.506%2025.0272%20119.955%2025.0272H122.68V20.0059H103.655C94.2464%2020.0059%2092.3614%2023.7758%2090.2705%2032.3454L85.2492%2050.9576C83.5701%2056.5967%2082.3188%2059.3212%2078.9765%2061.4121ZM61.3939%2078.963H78.977L78.9765%2061.4121H61.3939V78.963ZM17.4849%20120.369H36.7149C45.918%20120.369%2047.803%20116.393%2050.0998%20108.03L55.1212%2089.4176C56.8002%2083.9844%2058.0516%2081.054%2061.3939%2078.963H48.0089C38.3939%2078.963%2034.8299%2082.733%2032.533%2090.6689L28.1453%20106.984C26.4663%20113.257%2025.8485%20115.348%2020.1935%20115.348H17.4849V120.369ZM103.624%20120.369H122.648V115.348H119.923C114.49%20115.348%20113.651%20113.257%20111.972%20106.984L107.584%2090.6689C105.287%2082.7172%20101.945%2078.963%2092.3139%2078.963H78.977C82.3193%2081.054%2083.5226%2083.7785%2085.2017%2089.4176L90.223%20108.03C92.3139%20116.599%2094.1989%20120.369%20103.608%20120.369H103.624Z%22%20fill%3D%22%237856FF%22/%3E%3C/svg%3E"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --purple-01: #F2EEFF; --purple-02: #DAD0FF; --purple-03: #C1B1FF;
+    --purple-05: #9074FF; --purple-06: #7856FF; --purple-07: #5F41CF;
+    --purple-08: #472BA0; --purple-09: #2E1670; --purple-10: #150040;
+    --gray-01: #FAFAFA; --gray-02: #F4F4F4; --gray-03: #EAEAEA;
+    --gray-04: #DFDFDF; --gray-08: #797979; --gray-09: #515151; --gray-10: #1F2023;
+    --grass-01: #EBF6F1; --grass-06: #3BA974; --grass-07: #2C885C;
+    --text-primary: #1F2023; --text-secondary: rgba(0,0,0,0.60); --text-muted: #797979;
+    --surface: #FFFFFF; --border: #EAEAEA; --border-strong: #DFDFDF;
+    --radius: 10px; --radius-sm: 6px;
+    --font: 'Inter', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--gray-01);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Top nav ── */
+  .topnav {
+    background: var(--purple-10);
+    padding: 0 40px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .topnav-left { display: flex; align-items: center; gap: 12px; }
+  .topnav-wordmark { display: block; }
+  .topnav-divider { width: 1px; height: 18px; background: rgba(255,255,255,0.15); }
+  .topnav-label { font-size: 13px; color: rgba(255,255,255,0.45); font-weight: 400; letter-spacing: 0.01em; }
+  .topnav-badge {
+    font-size: 11px; font-weight: 500;
+    background: rgba(120,86,255,0.35);
+    color: var(--purple-03);
+    padding: 2px 8px; border-radius: 20px;
+    border: 1px solid rgba(120,86,255,0.4);
+  }
+
+  /* ── Hero ── */
+  .hero {
+    background: var(--purple-10);
+    padding: 52px 40px 64px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0; right: 0;
+    height: 40px;
+    background: var(--gray-01);
+    clip-path: ellipse(55% 100% at 50% 100%);
+  }
+  .hero-inner { max-width: 720px; margin: 0 auto; text-align: center; position: relative; z-index: 1; }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--purple-03); margin-bottom: 18px;
+  }
+  .hero-eyebrow::before, .hero-eyebrow::after {
+    content: ''; display: block; width: 24px; height: 1px; background: rgba(193,177,255,0.35);
+  }
+  .hero-title {
+    font-size: 32px; font-weight: 600; line-height: 1.25;
+    color: #fff; margin-bottom: 14px; letter-spacing: -0.01em;
+  }
+  .hero-title span { color: var(--purple-03); }
+  .hero-sub {
+    font-size: 15px; color: rgba(255,255,255,0.55); line-height: 1.65; max-width: 540px; margin: 0 auto;
+  }
+
+  /* ── Main content ── */
+  .content {
+    flex: 1;
+    padding: 48px 40px 64px;
+    max-width: 960px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* ── Section header ── */
+  .section-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px;
+  }
+  .section-title { font-size: 13px; font-weight: 600; color: var(--gray-09); letter-spacing: 0.04em; text-transform: uppercase; }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Tool cards grid ── */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  .tool-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+  }
+  .tool-card:not(.coming-soon):hover {
+    box-shadow: 0 4px 16px rgba(120,86,255,0.12), 0 1px 4px rgba(0,0,0,0.06);
+    border-color: var(--purple-03);
+    transform: translateY(-2px);
+  }
+  .tool-card.coming-soon { opacity: 0.6; cursor: default; }
+
+  .tool-card-accent {
+    height: 4px;
+    background: linear-gradient(90deg, var(--purple-06), var(--purple-03));
+  }
+  .tool-card.coming-soon .tool-card-accent {
+    background: var(--gray-03);
+  }
+
+  .tool-card-body { padding: 22px 22px 18px; flex: 1; }
+
+  .tool-card-provider {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  }
+  .provider-logo {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .provider-logo.ld   { background: #1B1B2E; }
+  .provider-logo.opt  { background: #0037FF; }
+  .provider-logo.stat { background: #1A1A1A; }
+
+  .provider-name { font-size: 15px; font-weight: 600; color: var(--gray-10); }
+  .provider-type { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+  .tool-card-desc {
+    font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;
+  }
+
+  .tool-card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    font-size: 11px; font-weight: 500;
+    padding: 3px 8px; border-radius: 5px;
+  }
+  .tag-of  { background: var(--grass-01); color: var(--grass-07); }
+  .tag-api { background: var(--purple-01); color: var(--purple-08); }
+  .tag-soon { background: var(--gray-02); color: var(--gray-08); border: 1px solid var(--border); }
+
+  .tool-card-footer {
+    padding: 12px 22px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--gray-01);
+  }
+  .tool-card-cta {
+    font-size: 12px; font-weight: 600;
+    color: var(--purple-06);
+    display: flex; align-items: center; gap: 5px;
+    transition: gap 0.13s;
+  }
+  .tool-card:not(.coming-soon):hover .tool-card-cta { gap: 8px; }
+  .tool-card-cta-arrow { font-size: 14px; }
+  .tool-card-status {
+    font-size: 11px; font-weight: 500;
+    padding: 3px 8px; border-radius: 5px;
+  }
+  .status-ready    { background: var(--grass-01); color: var(--grass-07); }
+  .status-soon     { background: var(--gray-02); color: var(--gray-08); border: 1px solid var(--border); }
+
+  /* ── OpenFeature info strip ── */
+  .of-strip {
+    background: var(--surface);
+    border: 1px solid var(--purple-02);
+    border-radius: var(--radius);
+    padding: 18px 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  .of-strip-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--purple-01); display: flex; align-items: center;
+    justify-content: center; font-size: 18px; flex-shrink: 0; margin-top: 1px;
+  }
+  .of-strip-body { flex: 1; }
+  .of-strip-title { font-size: 13px; font-weight: 600; color: var(--purple-08); margin-bottom: 4px; }
+  .of-strip-text  { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .of-strip-text strong { color: var(--text-primary); }
+  .of-providers { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .of-pill {
+    font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 5px;
+    border: 1px solid var(--border-strong); color: var(--gray-09); background: var(--gray-01);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .of-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .of-pill .dot.green  { background: var(--grass-06); }
+  .of-pill .dot.amber  { background: #CA9430; }
+  .of-pill .dot.gray   { background: var(--gray-04); }
+
+  /* ── How it works ── */
+  .how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .how-step {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .how-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--purple-10); color: var(--purple-03);
+    font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+  }
+  .how-title { font-size: 13px; font-weight: 600; color: var(--gray-10); margin-bottom: 6px; }
+  .how-desc  { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+  /* ── Footer ── */
+  .footer {
+    background: var(--purple-10);
+    padding: 20px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .footer-left { font-size: 12px; color: rgba(255,255,255,0.3); }
+  .footer-right { font-size: 12px; color: rgba(255,255,255,0.25); }
+</style>
+</head>
+<body>
+
+<!-- ── Top nav ── -->
+<header class="topnav">
+  <div class="topnav-left">
+    <svg class="topnav-wordmark" width="100" height="24" viewBox="0 0 400 95" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 73.4531H23.9775V70.905H22.1769C18.6724 70.905 17.8284 69.9485 17.8284 66.452V34.8384C20.2719 30.6988 23.5595 28.0462 27.6991 28.0462C32.8997 28.0462 36.0827 31.8643 36.0827 39.0825V66.46C36.0827 69.9646 35.2307 70.9131 31.8386 70.9131H29.9256V73.4611H53.3725V70.9131H51.6765C48.1719 70.9131 47.3279 69.9565 47.3279 66.46V37.9089C47.3279 36.9524 47.3279 35.9959 47.2234 35.0474C49.5545 30.8033 53.0591 28.0462 57.1986 28.0462C62.3993 28.0462 65.5823 31.8643 65.5823 39.0825V66.46C65.5823 69.9646 64.7303 70.9131 61.3382 70.9131H59.4252V73.4611H82.8721V70.9131H81.2806C77.6715 70.9131 76.8275 69.9565 76.8275 66.46V37.9089C76.8275 27.1942 70.7829 21.2541 61.9732 21.2541C55.3981 21.2541 49.667 24.8632 46.5884 32.0733C44.7879 25.0722 39.4828 21.2541 32.4737 21.2541C26.212 21.2541 20.8024 24.6461 17.8284 31.4383V22.5241H0V25.0722H2.12204C5.73112 25.0722 6.57511 26.0287 6.57511 29.5252V66.452C6.57511 69.9565 5.72308 70.905 2.12204 70.905H0V73.4531ZM96.9789 14.0359C100.797 14.0359 103.98 10.8529 103.98 7.03482C103.98 3.21675 100.797 0.0336914 96.9789 0.0336914C93.1608 0.0336914 89.9777 3.21675 89.9777 7.03482C89.9777 10.8529 93.1608 14.0359 96.9789 14.0359ZM85.0987 73.4531H108.65V70.905H107.059C103.554 70.905 102.71 69.9485 102.71 66.452V22.5241H84.8816V25.0722H87.0037C90.6127 25.0722 91.4567 26.0287 91.4567 29.5252V66.452C91.4567 69.9565 90.6047 70.905 87.0037 70.905H85.0906V73.4531H85.0987ZM125.843 43.5355H132.636C130.94 42.4745 130.305 40.9875 129.453 38.2304L126.904 28.7857C125.739 24.5417 124.782 22.5241 120.112 22.5241H110.354V25.0722H111.737C114.598 25.0722 114.92 26.1332 115.772 29.3162L117.998 37.5954C119.164 41.6305 120.972 43.5355 125.851 43.5355H125.843ZM141.55 43.5355H148.342C153.221 43.5355 154.917 41.6225 156.091 37.5954L158.317 29.3162C159.169 26.1332 159.587 25.0722 162.352 25.0722H163.735V22.5241H154.081C149.306 22.5241 148.35 24.4372 147.289 28.7857L144.741 38.2304C143.889 41.092 143.246 42.4745 141.55 43.5355ZM132.636 52.4497H141.55V43.5355H132.636V52.4497ZM110.354 73.4611H120.112C124.782 73.4611 125.739 71.4436 126.904 67.1995L129.453 57.7548C130.305 54.9978 130.94 53.5107 132.636 52.4497H125.843C120.964 52.4497 119.156 54.3628 117.99 58.3898L115.764 66.669C114.912 69.852 114.598 70.9131 111.729 70.9131H110.346V73.4611H110.354ZM154.065 73.4611H163.719V70.9131H162.336C159.579 70.9131 159.153 69.852 158.301 66.669L156.074 58.3898C154.909 54.3547 153.213 52.4497 148.326 52.4497H141.55C143.246 53.5107 143.865 54.8933 144.717 57.7548L147.265 67.1995C148.326 71.5481 149.282 73.4611 154.057 73.4611H154.065ZM165.101 94.6815H189.714V92.1335H187.166C183.774 92.1335 182.922 91.1769 182.922 87.6804V67.4165C186 71.9821 191.201 74.7392 197.35 74.7392C208.917 74.7392 218.144 64.555 218.144 46.9437C218.144 31.0283 209.447 21.2702 198.194 21.2702C191.619 21.2702 186.097 25.0882 182.913 31.8804V22.5402H165.085V25.0882H167.207C170.712 25.0882 171.66 26.0448 171.66 29.5413V87.6724C171.66 91.1769 170.704 92.1254 167.207 92.1254H165.085V94.6735L165.101 94.6815ZM194.175 27.8372C201.071 27.8372 206.698 34.3079 206.698 47.1446C206.698 61.1469 201.497 68.791 194.392 68.791C189.826 68.791 185.799 66.3475 182.93 62.1034V35.7869C185.687 30.5863 189.617 27.8292 194.175 27.8292V27.8372ZM234.92 74.5221C241.816 74.5221 247.33 71.2346 251.47 63.8074V64.973C251.47 71.3391 255.505 74.0961 262.185 74.0961C264.202 74.0961 266.75 73.8871 268.446 73.3566V70.7041C267.594 70.9131 266.959 71.0256 266.324 71.0256C263.672 71.0256 262.82 69.4341 262.82 66.886V39.7175C262.82 27.1942 255.818 21.2541 244.043 21.2541C236.19 21.2541 228.553 24.8632 223.674 28.6812L225.37 31.6553C230.466 28.1507 235.45 26.1412 240.86 26.1412C247.861 26.1412 251.47 29.9593 251.47 38.8735V41.2045L238.416 46.3006C226.536 51.1797 222.179 55.7453 222.179 62.6419C222.179 69.5386 227.058 74.5221 234.912 74.5221H234.92ZM233.328 59.8768C233.328 54.5717 236.407 50.7537 242.668 47.9966L251.478 44.1786V60.7289C248.19 65.2945 244.372 67.947 240.233 67.947C236.093 67.947 233.336 65.0855 233.336 59.8849L233.328 59.8768ZM270.568 73.4611H294.763V70.9131H292.745C289.241 70.9131 288.397 69.9565 288.397 66.46V34.9429C290.84 30.6988 294.441 28.0462 298.685 28.0462C304.199 28.0462 307.704 31.8643 307.704 39.0825V66.46C307.704 69.9646 306.852 70.9131 303.46 70.9131H301.442V73.4611H325.524V70.9131H323.402C319.793 70.9131 318.949 69.9565 318.949 66.46V37.9089C318.949 27.1942 312.583 21.2541 303.564 21.2541C296.989 21.2541 291.467 24.6461 288.389 31.4383V22.5241H270.56V25.0722H272.682C276.291 25.0722 277.135 26.0287 277.135 29.5252V66.452C277.135 69.9565 276.283 70.905 272.682 70.905H270.56V73.4531L270.568 73.4611ZM353.111 74.7311C360.112 74.7311 366.695 71.5481 371.47 67.73L369.878 65.399C365.634 68.4775 360.859 69.8521 356.406 69.8521C345.587 69.8521 339.221 62.2159 339.221 47.3616V45.4486H372.748C372.539 31.1248 363.729 21.3666 350.892 21.3666C338.056 21.3666 327.759 32.9334 327.759 48.2137C327.759 64.981 337.308 74.7392 353.119 74.7392L353.111 74.7311ZM350.989 24.0111C357.355 24.0111 361.277 30.9078 361.92 42.579H339.43C340.387 30.8033 344.84 24.0111 350.997 24.0111H350.989ZM375.071 73.4531H399.683V70.905H397.24C393.735 70.905 392.891 69.9485 392.891 66.452V1.3037H375.063V3.85176H377.185C380.689 3.85176 381.638 4.80828 381.638 8.30483V66.452C381.638 69.9565 380.681 70.905 377.185 70.905H375.063V73.4531H375.071Z" fill="#7856FF"/>
+    </svg>
+    <div class="topnav-divider"></div>
+    <span class="topnav-label">Feature Flag Migration Tools</span>
+  </div>
+  <span class="topnav-badge">Beta</span>
+</header>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Feature Flag Migration</div>
+    <h1 class="hero-title">Migrate your flags to <span>Mixpanel</span></h1>
+    <p class="hero-sub">Browser-based tools that connect to your existing provider, fetch all flags, and import them into Mixpanel — no backend required.</p>
+  </div>
+</section>
+
+<!-- ── Content ── -->
+<main class="content">
+
+  <!-- Tools -->
+  <div class="section-header">
+    <span class="section-title">Choose your provider</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="tools-grid">
+
+    <!-- Optimizely -->
+    <a class="tool-card" href="./optimizely_mixpanel_migration.html">
+      <div class="tool-card-accent"></div>
+      <div class="tool-card-body">
+        <div class="tool-card-provider">
+          <div class="provider-logo opt">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="white" stroke-width="2"/><circle cx="10" cy="10" r="3" fill="white"/></svg>
+          </div>
+          <div>
+            <div class="provider-name">Optimizely</div>
+            <div class="provider-type">Feature Experimentation</div>
+          </div>
+        </div>
+        <p class="tool-card-desc">Fetch flags, rulesets, and A/B experiments from Optimizely Feature Experimentation and import them into Mixpanel with experiment payloads intact.</p>
+        <div class="tool-card-tags">
+          <span class="tag tag-api">Full API migration</span>
+          <span class="tag tag-api">A/B experiments</span>
+          <span class="tag tag-api">Rollout rules</span>
+        </div>
+      </div>
+      <div class="tool-card-footer">
+        <span class="tool-card-cta">Open tool <span class="tool-card-cta-arrow">→</span></span>
+        <span class="tool-card-status status-ready">Ready</span>
+      </div>
+    </a>
+
+    <!-- LaunchDarkly -->
+    <a class="tool-card" href="./launchdarkly_mixpanel_migration.html">
+      <div class="tool-card-accent"></div>
+      <div class="tool-card-body">
+        <div class="tool-card-provider">
+          <div class="provider-logo ld">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10C4 6.69 6.69 4 10 4V7C8.34 7 7 8.34 7 10H4Z" fill="white"/><path d="M10 4C13.31 4 16 6.69 16 10C16 13.31 13.31 16 10 16V13C11.66 13 13 11.66 13 10C13 8.34 11.66 7 10 7V4Z" fill="white" opacity="0.5"/></svg>
+          </div>
+          <div>
+            <div class="provider-name">LaunchDarkly</div>
+            <div class="provider-type">Feature Management</div>
+          </div>
+        </div>
+        <p class="tool-card-desc">Supports both OpenFeature provider swap (fastest path) and full SDK migration. Fetches all flag types from the LaunchDarkly REST API.</p>
+        <div class="tool-card-tags">
+          <span class="tag tag-of">OpenFeature</span>
+          <span class="tag tag-api">Full API migration</span>
+        </div>
+      </div>
+      <div class="tool-card-footer">
+        <span class="tool-card-cta">Open tool <span class="tool-card-cta-arrow">→</span></span>
+        <span class="tool-card-status status-ready">Ready</span>
+      </div>
+    </a>
+
+    <!-- Statsig -->
+    <div class="tool-card coming-soon">
+      <div class="tool-card-accent"></div>
+      <div class="tool-card-body">
+        <div class="tool-card-provider">
+          <div class="provider-logo stat">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="11" width="3" height="6" fill="white" opacity="0.4"/><rect x="8.5" y="7" width="3" height="10" fill="white" opacity="0.7"/><rect x="14" y="3" width="3" height="14" fill="white"/></svg>
+          </div>
+          <div>
+            <div class="provider-name">Statsig</div>
+            <div class="provider-type">Experimentation Platform</div>
+          </div>
+        </div>
+        <p class="tool-card-desc">Migrate feature gates, dynamic configs, and experiments from Statsig. Supports OpenFeature provider swap for teams using the Statsig OpenFeature provider.</p>
+        <div class="tool-card-tags">
+          <span class="tag tag-of">OpenFeature</span>
+          <span class="tag tag-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="tool-card-footer">
+        <span class="tool-card-cta" style="color:var(--text-muted)">Coming soon</span>
+        <span class="tool-card-status status-soon">In progress</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- OpenFeature strip -->
+  <div class="section-header">
+    <span class="section-title">OpenFeature support</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="of-strip" style="margin-bottom: 40px">
+    <div class="of-strip-icon">🔌</div>
+    <div class="of-strip-body">
+      <div class="of-strip-title">Already using the OpenFeature SDK?</div>
+      <div class="of-strip-text">
+        If your codebase uses the OpenFeature SDK with a LaunchDarkly or Statsig provider, migration is a <strong>single provider swap</strong> — no changes to flag evaluation call sites. The tools below detect your path and show before/after code for each SDK.
+      </div>
+      <div class="of-providers">
+        <span class="of-pill"><span class="dot green"></span> LaunchDarkly — official OpenFeature provider</span>
+        <span class="of-pill"><span class="dot amber"></span> Statsig — community OpenFeature provider</span>
+        <span class="of-pill"><span class="dot gray"></span> Optimizely — community OpenFeature provider</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <div class="section-header">
+    <span class="section-title">How it works</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="how-grid">
+    <div class="how-step">
+      <div class="how-num">1</div>
+      <div class="how-title">Connect your provider</div>
+      <div class="how-desc">Enter your existing provider's API credentials. The tool fetches all flags directly from your account — nothing is stored or sent anywhere except your own Mixpanel project.</div>
+    </div>
+    <div class="how-step">
+      <div class="how-num">2</div>
+      <div class="how-title">Review & select flags</div>
+      <div class="how-desc">Browse all retrieved flags, filter by status or type, assign the target Mixpanel SDK per flag, and export a shareable migration report before importing.</div>
+    </div>
+    <div class="how-step">
+      <div class="how-num">3</div>
+      <div class="how-title">Import to Mixpanel</div>
+      <div class="how-desc">One click creates all selected flags in your Mixpanel project via the Management API. Use dry-run mode to preview without writing. Generated code samples show the new SDK call sites.</div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── Footer ── -->
+<footer class="footer">
+  <span class="footer-left">Mixpanel Feature Flag Migration Tools</span>
+  <span class="footer-right">All API calls are made directly from your browser — no data leaves your machine.</span>
+</footer>
+
+</body>
 </html>
