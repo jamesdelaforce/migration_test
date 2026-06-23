@@ -269,6 +269,15 @@
   .dry-run-label:hover { background: var(--gray-02); }
   input[type=checkbox] { accent-color: var(--purple-06); }
 
+  /* ── Risk badges ── */
+  .risk-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
+    border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+    white-space: nowrap; margin: 1px; }
+  .risk-high   { background: var(--lava-01);    color: var(--lava-07);    border: 1px solid #FFBFB1; }
+  .risk-medium { background: var(--mustard-01); color: var(--mustard-07); border: 1px solid #FCE0A5; }
+  .risk-info   { background: var(--pool-01);    color: var(--pool-09);    border: 1px solid #BEE1FA; }
+  .risk-cell   { display: flex; flex-wrap: wrap; gap: 2px; max-width: 200px; }
+
   /* ── OpenFeature path highlight ── */
   .of-banner {
     display: flex; align-items: flex-start; gap: 14px;
@@ -547,6 +556,12 @@
           <option value="multivariate">Multivariate</option>
           <option value="experiment">Experiment</option>
         </select>
+        <select id="f-risk" onchange="renderTable()">
+          <option value="">All risk levels</option>
+          <option value="high">⚠ High risk</option>
+          <option value="medium">~ Medium risk</option>
+          <option value="clean">✓ Clean</option>
+        </select>
         <span class="badge" id="count-badge">0 flags</span>
         <button class="btn btn-sm" onclick="goTo('code')">Code samples →</button>
         <button class="btn btn-sm btn-purple" onclick="goTo('import')">Import selected →</button>
@@ -561,7 +576,7 @@
           <thead><tr>
             <th style="width:32px"></th>
             <th>Key</th><th>Name</th><th>Status</th><th>Type</th>
-            <th>Variations</th><th>Tags</th><th>Mixpanel SDK</th><th>Eval mode</th>
+            <th>Variations</th><th>Migration risks</th><th>Tags</th><th>Mixpanel SDK</th><th>Eval mode</th>
           </tr></thead>
           <tbody id="flag-tbody"></tbody>
         </table>
@@ -970,6 +985,97 @@ function ldVariationCount(flag) {
   return Array.isArray(flag.variations) ? flag.variations.length : 2;
 }
 
+/**
+ * Resolve the control variation index using the correct priority order:
+ *   1. experiments.baselineIdx  — authoritative for experiment flags
+ *   2. defaults.onVariation     — what's served in normal operation
+ *   3. 0                        — safe fallback
+ * NOTE: we deliberately do NOT use offVariation — that is the "kill switch"
+ * state, not the baseline/control.
+ */
+function ldControlIdx(flag) {
+  if (flag.experiments?.baselineIdx !== undefined) return flag.experiments.baselineIdx;
+  if (flag.defaults?.onVariation    !== undefined) return flag.defaults.onVariation;
+  return 0;
+}
+
+/**
+ * Analyse a flag for migration risks. Returns an array of risk objects:
+ *   { level: 'high'|'medium'|'info', label, detail }
+ */
+function ldRisks(flag, env) {
+  const risks = [];
+  const envData = flag.environments?.[env] ?? {};
+  const rules   = envData.rules ?? [];
+  const summary = envData._summary ?? {};
+
+  // Count total rules across all variation summaries
+  const totalRules = Object.values(summary.variations ?? {})
+    .reduce((s, v) => s + (v.rules ?? 0), 0);
+
+  // Prerequisite flags
+  const prereqCount = summary.prerequisites ?? (envData.prerequisites ?? []).length;
+  if (prereqCount > 0) {
+    risks.push({
+      level: 'medium', label: `${prereqCount} prereq${prereqCount>1?'s':''}`,
+      detail: `Has ${prereqCount} prerequisite flag(s) — dependency chain will be dropped on import.`
+    });
+  }
+
+  // Scan rules for non-user context kinds and segment matches
+  const nonUserContexts = new Set();
+  let hasSegmentMatch = false;
+  let hasTranslatableRules = false;
+
+  for (const rule of rules) {
+    for (const clause of (rule.clauses ?? [])) {
+      if (clause.op === 'segmentMatch') {
+        hasSegmentMatch = true;
+      } else if (clause.contextKind && clause.contextKind !== 'user') {
+        nonUserContexts.add(clause.contextKind);
+      } else {
+        hasTranslatableRules = true;
+      }
+    }
+  }
+
+  if (nonUserContexts.size > 0) {
+    risks.push({
+      level: 'high', label: 'non-user context',
+      detail: `Rules use context kind(s): ${[...nonUserContexts].join(', ')}. Assignment key must be updated manually in Mixpanel UI after import.`
+    });
+  }
+
+  if (hasSegmentMatch) {
+    risks.push({
+      level: 'high', label: 'segment rules',
+      detail: 'segmentMatch rules cannot be auto-translated — recreate as Mixpanel cohorts manually.'
+    });
+  }
+
+  if (hasTranslatableRules) {
+    risks.push({
+      level: 'info', label: 'rules translated',
+      detail: 'Attribute-based targeting rules translated to JsonLogic runtime_evaluation_rule.'
+    });
+  }
+
+  // Multivariate value loss
+  if (flag.kind !== 'boolean' && (flag.variations ?? []).length > 0) {
+    const hasNonStringValues = (flag.variations ?? []).some(vr =>
+      typeof vr.value === 'object' || typeof vr.value === 'number'
+    );
+    if (hasNonStringValues) {
+      risks.push({
+        level: 'medium', label: 'value type lost',
+        detail: `Variation values (${flag.kind}) are preserved in descriptions only — Mixpanel flag variants use string keys.`
+      });
+    }
+  }
+
+  return risks;
+}
+
 function statusPill(flag, env) {
   const s = ldFlagStatus(flag, env);
   const m = { active: 'pill-green', inactive: 'pill-neutral', archived: 'pill-red' };
@@ -982,13 +1088,30 @@ function typePill(flag) {
   return `<span class="pill ${m[t]}">${t}</span>`;
 }
 
+function riskBadges(flag, env) {
+  const risks = ldRisks(flag, env);
+  if (!risks.length) return '<span style="color:var(--text-muted);font-size:11px">—</span>';
+  return `<div class="risk-cell">${risks.map(r =>
+    `<span class="risk-badge risk-${r.level}" title="${r.detail}">${r.label}</span>`
+  ).join('')}</div>`;
+}
+
 // ── Table render ──────────────────────────────────────────────────────────────
 function renderTable() {
   const cfg = getCfg();
-  const q = v('search').toLowerCase(), sf = v('f-status'), tf = v('f-type');
+  const q = v('search').toLowerCase(), sf = v('f-status'), tf = v('f-type'), rf = v('f-risk') || '';
   const vis = allFlags.filter(f => {
     const mq = !q || f.key.toLowerCase().includes(q) || (f.name||'').toLowerCase().includes(q);
-    return mq && (!sf || ldFlagStatus(f, cfg.ldEnv) === sf) && (!tf || ldFlagType(f) === tf);
+    if (!mq) return false;
+    if (sf && ldFlagStatus(f, cfg.ldEnv) !== sf) return false;
+    if (tf && ldFlagType(f) !== tf) return false;
+    if (rf) {
+      const risks = ldRisks(f, cfg.ldEnv);
+      if (rf === 'high'   && !risks.some(r => r.level === 'high'))   return false;
+      if (rf === 'medium' && !risks.some(r => r.level === 'medium')) return false;
+      if (rf === 'clean'  && risks.length > 0)                       return false;
+    }
+    return true;
   });
   const tbody = el('flag-tbody');
   tbody.innerHTML = vis.map(f => {
@@ -1007,6 +1130,7 @@ function renderTable() {
       <td>${statusPill(f, cfg.ldEnv)}</td>
       <td>${typePill(f)}</td>
       <td style="color:var(--text-secondary)">${vc}</td>
+      <td>${riskBadges(f, cfg.ldEnv)}</td>
       <td style="color:var(--text-secondary);font-size:12px">${tags}</td>
       <td><select class="sdk-select" data-key="${f.key}" onchange="setSdk('${f.key}',this.value)">${sdkOpts}</select></td>
       <td><select class="sdk-select" id="mode-sel-${f.key}" data-key="${f.key}" onchange="setEvalModeFromTable('${f.key}',this.value)">${modeOpts}</select></td>
@@ -1155,17 +1279,26 @@ function copyAllSnippets(flagKey) {
 // Map LaunchDarkly variations to Mixpanel variant names
 function buildLdVariantNames(flag) {
   const variations = flag.variations || [];
-  if (!variations.length) return [{ mpKey: 'treatment', name: 'treatment' }];
-  // Boolean flags: first variation = true/on = treatment, second = false/off = control
-  if (ldFlagType(flag) === 'boolean' && variations.length === 2) {
-    return [{ mpKey: 'treatment', name: variations[0].value?.toString() || 'on', ldIndex: 0 }];
-  }
-  // Multivariate: map to treatment_a, treatment_b, … (skip index 0 as control)
+  if (!variations.length) return [{ mpKey: 'treatment', name: 'treatment', ldIndex: 0 }];
+
+  const controlIdx = ldControlIdx(flag);
+
+  // Build treatment list: all variations except the control
   const letters = 'abcdefghijklmnopqrstuvwxyz';
-  return variations.slice(1).map((v, i) => ({
-    mpKey: variations.length === 2 ? 'treatment' : `treatment_${letters[i]||i}`,
-    name: v.name || v.value?.toString() || `variation_${i+1}`,
-    ldIndex: i + 1
+  const treatments = variations
+    .map((vr, idx) => ({ ...vr, idx }))
+    .filter(vr => vr.idx !== controlIdx);
+
+  if (!treatments.length) {
+    // Edge case: only one variation total
+    return [{ mpKey: 'treatment', name: variations[0]?.name || 'treatment', ldIndex: 0 }];
+  }
+
+  return treatments.map((vr, i) => ({
+    mpKey: treatments.length === 1 ? 'treatment' : `treatment_${letters[i] ?? i}`,
+    name: vr.name || String(vr.value ?? `variation_${vr.idx}`),
+    ldIndex: vr.idx,
+    value: vr.value,
   }));
 }
 
@@ -1249,10 +1382,31 @@ async function runImport() {
 
   for (let i = 0; i < selected.length; i++) {
     const flag = selected[i];
-    log(`→ ${flag.key}`, 'info');
+    log(`→ ${flag.key}  (${ldFlagType(flag)}, ${ldVariationCount(flag)} variations)`, 'info');
+
+    // Build payload and log rule translation details
     const flagP = buildMpFlagPayload(flag, cfg);
+    const rolloutMeta = flagP._ldRolloutMeta ?? [];
+    delete flagP._ldRolloutMeta;
+
+    // Log risk warnings
+    const risks = ldRisks(flag, cfg.ldEnv);
+    for (const r of risks) {
+      log(`   ${r.level === 'high' ? '⚠' : r.level === 'medium' ? '~' : 'ℹ'} ${r.detail}`, r.level === 'high' ? 'err' : 'warn');
+    }
+
+    // Log rule translations
+    for (const { entry, untranslatable, clauses } of rolloutMeta) {
+      if (clauses.length > 0 && entry.runtime_evaluation_rule) {
+        log(`   ✓ Rule translated → ${JSON.stringify(entry.runtime_evaluation_rule)}`, 'ok');
+      }
+      for (const uc of untranslatable) {
+        log(`   ~ Rule dropped (${uc.op}): ${uc.contextKind !== 'user' ? uc.contextKind + '.' : ''}${uc.attribute || 'segment'} — recreate manually`, 'warn');
+      }
+    }
+
     if (cfg.dryRun) {
-      log(`   [DRY RUN] flag: ${flag.key} (${ldFlagType(flag)}, ${ldVariationCount(flag)} variations)`, 'warn');
+      log(`   [DRY RUN] flag: ${flag.key}`, 'warn');
       flagOk++;
     } else {
       const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
@@ -1272,19 +1426,203 @@ async function runImport() {
   btn.disabled = false;
 }
 
+// ── LD clause → JsonLogic ─────────────────────────────────────────────────────
+// Translates a single LD clause into a JsonLogic rule object.
+// Returns null for untranslatable clauses (segmentMatch, unknown ops).
+function ldClauseToJsonLogic(clause) {
+  const attr  = clause.attribute;
+  const vals  = clause.values ?? [];
+  const first = vals[0];
+  let logic = null;
+
+  switch (clause.op) {
+    case 'in':
+      // LD "in" = value is one of the list
+      logic = { in: [{ var: attr }, vals] };
+      break;
+    case 'endsWith':
+      logic = vals.length === 1 ? { endsWith: [{ var: attr }, first] } : { or: vals.map(v => ({ endsWith: [{ var: attr }, v] })) };
+      break;
+    case 'startsWith':
+      logic = vals.length === 1 ? { startsWith: [{ var: attr }, first] } : { or: vals.map(v => ({ startsWith: [{ var: attr }, v] })) };
+      break;
+    case 'contains':
+      // JsonLogic: {"in": [needle, haystack]}
+      logic = vals.length === 1 ? { in: [first, { var: attr }] } : { or: vals.map(v => ({ in: [v, { var: attr }] })) };
+      break;
+    case 'matches':
+      // regex — not standard JsonLogic but Mixpanel may support it
+      logic = vals.length === 1 ? { regex: [{ var: attr }, first] } : { or: vals.map(v => ({ regex: [{ var: attr }, v] })) };
+      break;
+    case 'lessThan':           logic = { '<':  [{ var: attr }, first] }; break;
+    case 'lessThanOrEqual':    logic = { '<=': [{ var: attr }, first] }; break;
+    case 'greaterThan':        logic = { '>':  [{ var: attr }, first] }; break;
+    case 'greaterThanOrEqual': logic = { '>=': [{ var: attr }, first] }; break;
+    case 'before':             logic = { '<':  [{ var: attr }, first] }; break;
+    case 'after':              logic = { '>':  [{ var: attr }, first] }; break;
+    case 'semVerEqual':        logic = { '==': [{ var: attr }, first] }; break;
+    case 'semVerLessThan':     logic = { '<':  [{ var: attr }, first] }; break;
+    case 'semVerGreaterThan':  logic = { '>':  [{ var: attr }, first] }; break;
+    case 'segmentMatch':
+      return null; // Cannot translate — needs Mixpanel cohort
+    default:
+      return null;
+  }
+
+  if (logic && clause.negate) logic = { '!': logic };
+  return logic;
+}
+
+// Translate an array of LD clauses (AND) into a single JsonLogic object.
+// Returns { rule, definition, untranslatable[] }
+function ldClausesToJsonLogic(clauses) {
+  const parts = [];
+  const definition = {};
+  const untranslatable = [];
+
+  for (const clause of clauses) {
+    const logic = ldClauseToJsonLogic(clause);
+    if (logic) {
+      parts.push(logic);
+      if (clause.attribute) definition[clause.attribute] = clause.values?.[0] ?? '';
+    } else {
+      untranslatable.push(clause);
+    }
+  }
+
+  const rule = parts.length === 0  ? null
+             : parts.length === 1  ? parts[0]
+             : { and: parts };
+
+  return { rule, definition: Object.keys(definition).length ? definition : null, untranslatable };
+}
+
+// Build Mixpanel rollout entries from LD rules + fallthrough
+function buildMpRollout(flag, env, variants) {
+  const envData   = flag.environments?.[env] ?? {};
+  const rules     = envData.rules ?? [];
+  const fallthrough = envData.fallthrough ?? {};
+  const controlIdx  = ldControlIdx(flag);
+
+  // Map LD variation index → Mixpanel variant key
+  const ldIdxToMpKey = new Map();
+  ldIdxToMpKey.set(controlIdx, 'control');
+  variants.forEach(vr => ldIdxToMpKey.set(vr.ldIndex, vr.mpKey));
+
+  const rollout = [];
+
+  // ── Targeting rules ────────────────────────────────────────────────────────
+  for (const rule of rules) {
+    const clauses = rule.clauses ?? [];
+    const { rule: jsonLogicRule, definition, untranslatable } = ldClausesToJsonLogic(clauses);
+
+    // Determine which variant this rule serves
+    let variantSplits = {};
+    if (rule.variation !== undefined) {
+      const mpKey = ldIdxToMpKey.get(rule.variation);
+      if (mpKey) variantSplits[mpKey] = 1.0;
+    } else if (rule.rollout?.variations) {
+      // Weighted rollout within a rule
+      const rvs = rule.rollout.variations;
+      const treatmentTotal = rvs.filter(rv => rv.variation !== controlIdx)
+        .reduce((s, rv) => s + (rv.weight ?? 0), 0);
+      let rem = 1.0;
+      rvs.filter(rv => rv.variation !== controlIdx).forEach((rv, i, arr) => {
+        const mk = ldIdxToMpKey.get(rv.variation);
+        if (!mk) return;
+        if (i === arr.length - 1) { variantSplits[mk] = parseFloat(rem.toFixed(6)); }
+        else { const s = parseFloat((rv.weight / treatmentTotal).toFixed(6)); variantSplits[mk] = s; rem -= s; }
+      });
+    }
+
+    if (!Object.keys(variantSplits).length) continue;
+
+    const entry = {
+      name: rule.description || null,
+      cohort_definition: {},
+      runtime_evaluation_definition: definition ?? {},
+      runtime_evaluation_rule: jsonLogicRule ?? null,
+      runtime_event_rule: null,
+      cohort_hash: '711c452bb1e29c9571593d58f7fc17e5', // stable "all users" hash
+      rollout_percentage: 1,
+      variant_override: null,
+      variant_splits: variantSplits,
+    };
+    rollout.push({ entry, untranslatable, clauses });
+  }
+
+  // ── Fallthrough (default rule) ─────────────────────────────────────────────
+  let defaultRolloutPct = 0;
+  let defaultVariantSplits = {};
+
+  if (fallthrough.rollout?.variations) {
+    // Percentage rollout
+    const rvs = fallthrough.rollout.variations;
+    const treatmentTotal = rvs.filter(rv => rv.variation !== controlIdx)
+      .reduce((s, rv) => s + (rv.weight ?? 0), 0);
+    defaultRolloutPct = parseFloat(Math.min(treatmentTotal / 100000, 1).toFixed(6));
+    let rem = 1.0;
+    rvs.filter(rv => rv.variation !== controlIdx).forEach((rv, i, arr) => {
+      const mk = ldIdxToMpKey.get(rv.variation);
+      if (!mk) return;
+      if (i === arr.length - 1) { defaultVariantSplits[mk] = parseFloat(rem.toFixed(6)); }
+      else { const s = parseFloat((rv.weight / treatmentTotal).toFixed(6)); defaultVariantSplits[mk] = s; rem -= s; }
+    });
+  } else if (fallthrough.variation !== undefined) {
+    const mk = ldIdxToMpKey.get(fallthrough.variation);
+    if (mk && mk !== 'control') {
+      defaultRolloutPct = 1;
+      defaultVariantSplits[mk] = 1.0;
+    }
+  }
+
+  // Ensure at least one treatment key in splits
+  if (!Object.keys(defaultVariantSplits).length) {
+    const firstTreatment = variants[0];
+    if (firstTreatment) defaultVariantSplits[firstTreatment.mpKey] = 1.0;
+  }
+
+  rollout.push({
+    entry: {
+      name: null,
+      cohort_definition: {},
+      runtime_evaluation_definition: {},
+      runtime_evaluation_rule: null,
+      runtime_event_rule: null,
+      cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
+      rollout_percentage: defaultRolloutPct,
+      variant_override: null,
+      variant_splits: defaultVariantSplits,
+    },
+    untranslatable: [],
+    clauses: [],
+  });
+
+  return rollout;
+}
+
 function buildMpFlagPayload(flag, cfg) {
   const sdk = flagSdks[flag.key] || 'javascript';
   const servingMethod = SDKS.find(s => s.id === sdk)?.serving || 'client';
+  const controlIdx = ldControlIdx(flag);
+  const controlVar = flag.variations?.[controlIdx];
   const variants = buildLdVariantNames(flag);
-  const variantList = ['control', ...variants.map(v => v.mpKey)];
+  const variantList = ['control', ...variants.map(vr => vr.mpKey)];
   const even = parseFloat((1 / variantList.length).toFixed(6));
+
   const mpVariants = variantList.map((k, i) => ({
-    key: k, value: k, is_control: k === 'control', split: even,
+    key: k, value: k,
+    is_control: k === 'control',
+    split: even,
+    is_sticky: false,
+    screenshot: null,
     description: k === 'control'
-      ? `Control — Migrated from LaunchDarkly. Original: ${flag.variations?.[1]?.name || 'off'}`
-      : `Treatment — Migrated from LaunchDarkly. Original: ${variants[i-1]?.name || k}`
+      ? `Control — Migrated from LaunchDarkly. Original: ${controlVar?.name ?? String(controlVar?.value ?? 'control')} (variation index ${controlIdx})`
+      : `Treatment — Migrated from LaunchDarkly. Original: ${variants[i-1]?.name ?? k} (value: ${String(variants[i-1]?.value ?? '')})`
   }));
-  const treatmentKey = variants[0]?.mpKey || 'treatment';
+
+  const rolloutEntries = buildMpRollout(flag, cfg.ldEnv, variants);
+
   return {
     name: flag.name || flag.key,
     key: flag.key,
@@ -1295,8 +1633,9 @@ function buildMpFlagPayload(flag, cfg) {
     experiment_id: null,
     ruleset: {
       variants: mpVariants,
-      rollout: [{ rollout_percentage: 0, variant_splits: { [treatmentKey]: 1.0 } }]
-    }
+      rollout: rolloutEntries.map(r => r.entry),
+    },
+    _ldRolloutMeta: rolloutEntries, // used by import log, stripped before POST
   };
 }
 
