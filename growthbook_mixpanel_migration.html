@@ -838,7 +838,7 @@ function buildMpFlagPayload(flag, cfg) {
 
   const mpVariants = variantList.map((k, i) => ({
     key: k, value: k, is_control: k === 'control',
-    split: even, is_sticky: false, screenshot: null,
+    split: even, is_sticky: false,
     description: k === 'control'
       ? `Control — Migrated from GrowthBook. Default value: ${defaultVal}`
       : `Treatment — Migrated from GrowthBook. GrowthBook value: ${variants[i-1]?.gbValue ?? k}`,
@@ -851,6 +851,7 @@ function buildMpFlagPayload(flag, cfg) {
     key:  flag.id,
     description: flag.description || null,
     tags: Array.isArray(flag.tags) ? flag.tags.map(String) : [],
+    context: 'user',
     status: gbFlagStatus(flag, cfg.gbEnv) === 'enabled' ? 'enabled' : 'disabled',
     serving_method: servingMethod,
     experiment_id: null,
