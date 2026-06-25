@@ -1410,7 +1410,7 @@ async function runImport() {
       flagOk++;
     } else {
       const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
-        method: 'POST', headers: authHeaders(), body: JSON.stringify({ root: flagP })
+        method: 'POST', headers: authHeaders(), body: JSON.stringify(flagP)
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
@@ -1615,7 +1615,6 @@ function buildMpFlagPayload(flag, cfg) {
     is_control: k === 'control',
     split: even,
     is_sticky: false,
-    screenshot: null,
     description: k === 'control'
       ? `Control — Migrated from LaunchDarkly. Original: ${controlVar?.name ?? String(controlVar?.value ?? 'control')} (variation index ${controlIdx})`
       : `Treatment — Migrated from LaunchDarkly. Original: ${variants[i-1]?.name ?? k} (value: ${String(variants[i-1]?.value ?? '')})`
@@ -1628,6 +1627,7 @@ function buildMpFlagPayload(flag, cfg) {
     key: flag.key,
     description: flag.description || null,
     tags: Array.isArray(flag.tags) ? flag.tags.map(String) : [],
+    context: 'user',
     status: flag.archived ? 'archived' : (flag.environments?.[cfg.ldEnv]?.on ? 'enabled' : 'disabled'),
     serving_method: servingMethod,
     experiment_id: null,
