@@ -1158,7 +1158,7 @@ async function runImport() {
     }
 
     if (cfg.dryRun) {
-      log(`   [DRY RUN] flag: ${flag.id}`, 'warn');
+      log(`   [DRY RUN] payload: ${JSON.stringify(payload)}`, 'warn');
       flagOk++;
     } else {
       const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
@@ -1167,7 +1167,7 @@ async function runImport() {
       const body = await res.json().catch(() => ({}));
       if (res.ok)              { log(`   ✓ Flag created`, 'ok'); flagOk++; }
       else if (res.status===409) { log(`   ⏭ Skipped (already exists)`, 'warn'); skip++; }
-      else                     { log(`   ✗ Failed: ${body?.error ?? body?.message ?? 'HTTP '+res.status}`, 'err'); fail++; }
+      else                     { log(`   ✗ Failed (HTTP ${res.status}): ${typeof body?.error === 'object' ? JSON.stringify(body.error) : (body?.error ?? body?.message ?? 'unknown')}`, 'err'); fail++; }
       await sleep(cfg.delayMs);
     }
 
