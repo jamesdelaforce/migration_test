@@ -1410,7 +1410,7 @@ async function runImport() {
       flagOk++;
     } else {
       const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
-        method: 'POST', headers: authHeaders(), body: JSON.stringify(flagP)
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ root: flagP })
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
