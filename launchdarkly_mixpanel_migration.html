@@ -642,6 +642,7 @@
         <div class="stat-card"><div class="stat-n" id="s-exp" style="color:var(--purple-06)">0</div><div class="stat-l">experiments created</div></div>
         <div class="stat-card"><div class="stat-n" id="s-flag" style="color:var(--grass-06)">0</div><div class="stat-l">flags created</div></div>
         <div class="stat-card"><div class="stat-n" id="s-fail" style="color:var(--lava-07)">0</div><div class="stat-l">failed</div></div>
+        <div class="stat-card"><div class="stat-n" id="s-skip" style="color:var(--text-muted)">0</div><div class="stat-l">skipped</div></div>
       </div>
 
       <div class="progress-bar-wrap" style="margin-bottom:12px">
@@ -650,10 +651,13 @@
 
       <div class="log" id="import-log">Ready — press Run import to begin.</div>
 
-      <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
+      <div style="display:flex;gap:8px;margin-top:16px;align-items:center;flex-wrap:wrap">
         <button class="btn" onclick="goTo('select')">← Back</button>
         <button class="btn btn-primary" id="btn-preview" onclick="runImport(true)">Preview</button>
         <button class="btn btn-primary" id="btn-run" onclick="runImport(false)" style="background:var(--grass-06);border-color:var(--grass-06)">Import</button>
+        <button class="btn" id="btn-abort" onclick="abortImport()" style="display:none;background:var(--lava-07);color:white;border-color:var(--lava-07)">Abort</button>
+        <button class="btn" id="btn-retry" onclick="retryFailed()" style="display:none">Retry failed</button>
+        <button class="btn" id="btn-copy-log" onclick="copyLog()" style="display:none">Copy log</button>
         <span style="font-size:12px;color:var(--text-muted)" id="import-mode-hint">Preview first to check payloads, then Import to create flags in Mixpanel.</span>
       </div>
     </div>
@@ -664,6 +668,8 @@
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
 let allFlags = [];
+let importAborted = false;
+let failedFlags = []; // for retry
 let selectedKeys = new Set();
 let flagSdks = {};
 let flagEvalModes = {};
@@ -1371,32 +1377,51 @@ function generateSnippets(sdk, mode, flagKey, variants, token) {
 // ── Import to Mixpanel ────────────────────────────────────────────────────────
 async function runImport(dryRun=false) {
   const cfg = getCfg();
+  importAborted = false;
+  if (!dryRun) failedFlags = [];
   el('btn-run').disabled = true;
   el('btn-preview').disabled = true;
+  el('btn-abort').style.display = dryRun ? 'none' : '';
+  el('btn-abort').disabled = false;
+  el('btn-abort').textContent = 'Abort';
+  el('btn-retry').style.display = 'none';
+  el('btn-copy-log').style.display = 'none';
   el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.key));
-  let flagOk = 0, fail = 0;
+  let flagOk = 0, skip = 0, fail = 0;
   el('s-total').textContent = selected.length;
+  el('s-flag').textContent = '0'; el('s-fail').textContent = '0'; el('s-skip').textContent = '0';
   el('import-log').innerHTML = '';
   el('progress-bar').style.width = '0%';
   const mpDomain = cfg.mpRegion === 'us' ? 'mixpanel.com' : `${cfg.mpRegion}.mixpanel.com`;
 
+  // ── Pre-flight key validation ────────────────────────────────────────────
+  const keyErrors = [];
+  for (const flag of selected) {
+    const err = validateFlagKey(flag.key);
+    if (err) keyErrors.push(`${flag.key}: ${err}`);
+  }
+  if (keyErrors.length) {
+    for (const e of keyErrors) log(`✗ Key validation failed — ${e}`, 'err');
+    log(`Fix the above flag keys in LaunchDarkly before importing.`, 'err');
+    el('btn-run').disabled = false; el('btn-preview').disabled = false;
+    el('btn-abort').style.display = 'none';
+    return;
+  }
+
   for (let i = 0; i < selected.length; i++) {
+    if (importAborted) { log('Import aborted.', 'warn'); break; }
     const flag = selected[i];
     log(`→ ${flag.key}  (${ldFlagType(flag)}, ${ldVariationCount(flag)} variations)`, 'info');
 
-    // Build payload and log rule translation details
     const flagP = buildMpFlagPayload(flag, cfg);
     const rolloutMeta = flagP._ldRolloutMeta ?? [];
     delete flagP._ldRolloutMeta;
 
-    // Log risk warnings
     const risks = ldRisks(flag, cfg.ldEnv);
     for (const r of risks) {
       log(`   ${r.level === 'high' ? '⚠' : r.level === 'medium' ? '~' : 'ℹ'} ${r.detail}`, r.level === 'high' ? 'err' : 'warn');
     }
-
-    // Log rule translations
     for (const { entry, untranslatable, clauses } of rolloutMeta) {
       if (clauses.length > 0 && entry.runtime_evaluation_rule) {
         log(`   ✓ Rule translated → ${JSON.stringify(entry.runtime_evaluation_rule)}`, 'ok');
@@ -1407,24 +1432,39 @@ async function runImport(dryRun=false) {
     }
 
     if (dryRun) {
-      log(`   [PREVIEW] ${flag.key} — payload: ${JSON.stringify(flagP)}`, 'warn');
+      const rs = flagP.ruleset;
+      log(`   [PREVIEW] ${rs.variants.length} variant(s), ${rs.rollout.length} rollout rule(s)${risks.length ? `, ${risks.filter(r=>r.level==='high').length} high-risk warning(s)` : ''}`, 'warn');
       flagOk++;
     } else {
-      const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
-        method: 'POST', headers: authHeaders(), body: JSON.stringify(flagP)
-      });
-      const body = await res.json().catch(() => ({}));
-      if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
-      else if (res.status === 409) { log(`   ⏭ Skipped (already exists)`, 'warn'); flagOk++; }
-      else { log(`   ✗ Failed: ${body?.error ?? body?.message ?? 'HTTP ' + res.status}`, 'err'); fail++; }
+      try {
+        const res = await mpFetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
+          method: 'POST', headers: authHeaders(), body: JSON.stringify(flagP)
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
+        else if (res.status === 409) { log(`   ⏭ Skipped (already exists)`, 'warn'); skip++; }
+        else {
+          const detail = typeof body?.error === 'object' ? JSON.stringify(body.error) : (body?.error ?? body?.message ?? 'HTTP ' + res.status);
+          log(`   ✗ Failed: ${detail}`, 'err'); fail++;
+          failedFlags.push(flag);
+        }
+      } catch(err) {
+        log(`   ✗ Network error: ${err.message}`, 'err'); fail++;
+        failedFlags.push(flag);
+      }
       await sleep(cfg.delayMs);
     }
-    el('s-flag').textContent = flagOk; el('s-fail').textContent = fail;
+    el('s-flag').textContent = flagOk; el('s-fail').textContent = fail; el('s-skip').textContent = skip;
     el('progress-bar').style.width = `${Math.round(((i+1)/selected.length)*100)}%`;
   }
 
-  log(`Done — ${flagOk} flags${fail ? `, ${fail} failed` : ''}`, fail ? 'err' : 'ok');
-  el('btn-run').disabled = false; el('btn-preview').disabled = false; el('import-mode-hint').textContent = dryRun ? 'Preview complete — click Import to create flags.' : 'Import complete.';
+  const summary = `Done — ${flagOk} created, ${skip} skipped${fail ? `, ${fail} failed` : ''}${importAborted ? ' (aborted)' : ''}`;
+  log(summary, fail ? 'err' : 'ok');
+  el('btn-run').disabled = false; el('btn-preview').disabled = false;
+  el('btn-abort').style.display = 'none';
+  el('btn-copy-log').style.display = '';
+  if (failedFlags.length) el('btn-retry').style.display = '';
+  el('import-mode-hint').textContent = dryRun ? 'Preview complete — click Import to create flags.' : (fail ? `${fail} flag(s) failed — click Retry failed or check the log.` : 'Import complete.');
 }
 
 // ── LD clause → JsonLogic ─────────────────────────────────────────────────────
@@ -1749,6 +1789,68 @@ function showErr(elRef, msg) {
   elRef.innerHTML = `<div class="alert alert-error">${msg}</div>`;
   elRef.style.display = '';
 }
+
+// ── Abort ─────────────────────────────────────────────────────────────────────
+function abortImport() {
+  importAborted = true;
+  el('btn-abort').disabled = true;
+  el('btn-abort').textContent = 'Aborting…';
+}
+
+// ── Retry failed ──────────────────────────────────────────────────────────────
+async function retryFailed() {
+  if (!failedFlags.length) return;
+  const toRetry = [...failedFlags];
+  failedFlags = [];
+  el('btn-retry').style.display = 'none';
+  // temporarily add back to selectedKeys and re-run import for just these
+  selectedKeys = new Set(toRetry.map(f => f.key));
+  await runImport(false);
+}
+
+// ── Copy log ──────────────────────────────────────────────────────────────────
+function copyLog() {
+  const lines = Array.from(el('import-log').querySelectorAll('div')).map(d => d.textContent);
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = el('btn-copy-log');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy log'; }, 2000);
+  });
+}
+
+// ── Flag key validator ────────────────────────────────────────────────────────
+function validateFlagKey(key) {
+  // Mixpanel flag keys: lowercase alphanumeric, hyphens, underscores, max 256 chars
+  if (!key) return 'Key is empty';
+  if (key.length > 256) return `Key too long (${key.length} chars, max 256)`;
+  if (!/^[a-z0-9_-]+$/.test(key)) {
+    const bad = [...new Set(key.replace(/[a-z0-9_-]/g, '').split(''))].join('');
+    return `Invalid characters: ${bad} (only a-z, 0-9, _ and - allowed)`;
+  }
+  return null;
+}
+
+// ── mpFetch: fetch with 429 retry + network error handling ───────────────────
+async function mpFetch(url, options, maxRetries=3) {
+  let delay = 2000;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, options);
+    } catch (err) {
+      if (attempt === maxRetries) throw new Error(`Network error: ${err.message}`);
+      await sleep(delay); delay *= 2; continue;
+    }
+    if (res.status === 429) {
+      if (attempt === maxRetries) return res;
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '0') * 1000 || delay;
+      log(`   ⏳ Rate limited — waiting ${Math.round(retryAfter/1000)}s before retry ${attempt+1}/${maxRetries}…`, 'warn');
+      await sleep(retryAfter); delay *= 2; continue;
+    }
+    return res;
+  }
+}
+
 </script>
 </body>
 </html>
