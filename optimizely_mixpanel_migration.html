@@ -654,6 +654,7 @@
         <div class="stat-card"><div class="stat-n" id="s-exp" style="color:var(--purple-06)">0</div><div class="stat-l">experiments created</div></div>
         <div class="stat-card"><div class="stat-n" id="s-flag" style="color:var(--grass-06)">0</div><div class="stat-l">flags created</div></div>
         <div class="stat-card"><div class="stat-n" id="s-fail" style="color:var(--lava-07)">0</div><div class="stat-l">failed</div></div>
+        <div class="stat-card"><div class="stat-n" id="s-skip" style="color:var(--text-muted)">0</div><div class="stat-l">skipped</div></div>
       </div>
 
       <div class="progress-bar-wrap" style="margin-bottom:12px">
@@ -662,10 +663,13 @@
 
       <div class="log" id="import-log">Ready — press Run import to begin.</div>
 
-      <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
+      <div style="display:flex;gap:8px;margin-top:16px;align-items:center;flex-wrap:wrap">
         <button class="btn" onclick="goTo('select')">← Back</button>
         <button class="btn btn-primary" id="btn-preview" onclick="runImport(true)">Preview</button>
         <button class="btn btn-primary" id="btn-run" onclick="runImport(false)" style="background:var(--grass-06);border-color:var(--grass-06)">Import</button>
+        <button class="btn" id="btn-abort" onclick="abortImport()" style="display:none;background:var(--lava-07);color:white;border-color:var(--lava-07)">Abort</button>
+        <button class="btn" id="btn-retry" onclick="retryFailed()" style="display:none">Retry failed</button>
+        <button class="btn" id="btn-copy-log" onclick="copyLog()" style="display:none">Copy log</button>
         <span style="font-size:12px;color:var(--text-muted)" id="import-mode-hint">Preview first to check payloads, then Import to create flags in Mixpanel.</span>
       </div>
     </div>
@@ -676,6 +680,8 @@
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
 let allFlags = [];
+let importAborted = false;
+let failedFlags = []; // for retry
 let selectedKeys = new Set();
 let flagSdks = {};   // flagKey → sdk id
 let encodedAuth = '';
@@ -1685,20 +1691,39 @@ function download(filename, content, mime) {
 // ── Import ────────────────────────────────────────────────────────────────────
 async function runImport(dryRun=false) {
   const cfg = getCfg();
+  importAborted = false;
+  if (!dryRun) failedFlags = [];
   el('btn-run').disabled = true;
   el('btn-preview').disabled = true;
+  el('btn-abort').style.display = dryRun ? 'none' : '';
+  el('btn-abort').disabled = false;
+  el('btn-abort').textContent = 'Abort';
+  el('btn-retry').style.display = 'none';
+  el('btn-copy-log').style.display = 'none';
   el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.key));
-  let expOk=0, flagOk=0, fail=0;
-
+  let flagOk = 0, expOk = 0, skip = 0, fail = 0;
   el('s-total').textContent = selected.length;
+  el('s-flag').textContent = '0'; el('s-exp').textContent = '0'; el('s-fail').textContent = '0'; el('s-skip').textContent = '0';
   el('import-log').innerHTML = '';
   el('progress-bar').style.width = '0%';
-
-  // Map region id → Mixpanel API domain
   const mpDomain = cfg.mpRegion === 'us' ? 'mixpanel.com' : `${cfg.mpRegion}.mixpanel.com`;
 
+  const keyErrors = [];
+  for (const flag of selected) {
+    const err = validateFlagKey(flag.key);
+    if (err) keyErrors.push(`${flag.key}: ${err}`);
+  }
+  if (keyErrors.length) {
+    for (const e of keyErrors) log(`✗ Key validation failed — ${e}`, 'err');
+    log('Fix the above flag keys in Optimizely before importing.', 'err');
+    el('btn-run').disabled = false; el('btn-preview').disabled = false;
+    el('btn-abort').style.display = 'none';
+    return;
+  }
+
   for (let i = 0; i < selected.length; i++) {
+    if (importAborted) { log('Import aborted.', 'warn'); break; }
     const flag = selected[i];
     log(`→ ${flag.key}`, 'info');
     const rt = flagRuleType(flag, cfg.optEnv);
@@ -1719,91 +1744,56 @@ async function runImport(dryRun=false) {
       const abRules = (fullRuleset ? Object.values(fullRuleset.rules??{}) : flag.environments?.[cfg.optEnv]?.rules_detail??[]).filter(r=>r.type==='a/b');
       if (abRules.length) {
         const expP = buildExperimentPayload(flag, abRules);
-        if (dryRun) { log(`   [PREVIEW] experiment: "${expP.name}" — payload: ${JSON.stringify(expP)}`, 'warn'); expOk++; }
-        else {
-          const res = await fetch(`https://${mpDomain}/api/app/workspaces/${cfg.mpWorkspace}/experiments`, { method:'POST', headers:authHeaders(), body:JSON.stringify(expP) });
-          const body = await res.json().catch(()=>({}));
-          if (res.ok) { experimentId=body?.id??body?.experiment_id??null; log(`   ✓ Experiment created`, 'ok'); expOk++; }
-          else { log(`   ✗ Experiment failed: ${body?.error??body?.message??'HTTP '+res.status}`, 'err'); fail++; }
+        if (dryRun) {
+          log(`   [PREVIEW] experiment: "${expP.name}" — ${expP.variants.length} variant(s)`, 'warn');
+          expOk++;
+        } else {
+          try {
+            const res = await mpFetch(`https://${mpDomain}/api/app/workspaces/${cfg.mpWorkspace}/experiments`, { method:'POST', headers:authHeaders(), body:JSON.stringify(expP) });
+            const body = await res.json().catch(()=>({}));
+            if (res.ok) { experimentId=body?.id??body?.experiment_id??null; log(`   ✓ Experiment created`, 'ok'); expOk++; }
+            else { log(`   ✗ Experiment failed: ${body?.error??body?.message??'HTTP '+res.status}`, 'err'); }
+          } catch(err) { log(`   ✗ Experiment network error: ${err.message}`, 'err'); }
           await sleep(120);
         }
       }
     }
 
     const flagP = buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations);
-    if (dryRun) { log(`   [PREVIEW] ${flag.key} — payload: ${JSON.stringify(flagP)}`, 'warn'); flagOk++; }
-    else {
-      const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, { method:'POST', headers:authHeaders(), body:JSON.stringify(flagP) });
-      const body = await res.json().catch(()=>({}));
-      if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
-      else if (res.status===409) { log(`   ⏭ Skipped (already exists)`, 'warn'); flagOk++; }
-      else { log(`   ✗ Failed: ${body?.error??body?.message??'HTTP '+res.status}`, 'err'); fail++; }
-      await sleep(120);
-    }
 
-    el('s-exp').textContent=expOk; el('s-flag').textContent=flagOk; el('s-fail').textContent=fail;
+    if (dryRun) {
+      const rs = flagP.ruleset;
+      log(`   [PREVIEW] ${rs.variants.length} variant(s), ${rs.rollout.length} rollout rule(s)`, 'warn');
+      flagOk++;
+    } else {
+      try {
+        const res = await mpFetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, { method:'POST', headers:authHeaders(), body:JSON.stringify(flagP) });
+        const body = await res.json().catch(()=>({}));
+        if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
+        else if (res.status===409) { log(`   ⏭ Skipped (already exists)`, 'warn'); skip++; }
+        else {
+          const detail = typeof body?.error === 'object' ? JSON.stringify(body.error) : (body?.error ?? body?.message ?? 'HTTP '+res.status);
+          log(`   ✗ Failed: ${detail}`, 'err'); fail++;
+          failedFlags.push(flag);
+        }
+      } catch(err) {
+        log(`   ✗ Network error: ${err.message}`, 'err'); fail++;
+        failedFlags.push(flag);
+      }
+      await sleep(80);
+    }
+    el('s-flag').textContent = flagOk; el('s-exp').textContent = expOk; el('s-fail').textContent = fail; el('s-skip').textContent = skip;
     el('progress-bar').style.width = `${Math.round(((i+1)/selected.length)*100)}%`;
   }
 
-  log(`Done — ${expOk} experiments, ${flagOk} flags${fail?`, ${fail} failed`:''}`, fail?'err':'ok');
-  btn.disabled = false;
+  const summary = `Done — ${flagOk} flags, ${expOk} experiments, ${skip} skipped${fail ? `, ${fail} failed` : ''}${importAborted ? ' (aborted)' : ''}`;
+  log(summary, fail ? 'err' : 'ok');
+  el('btn-run').disabled = false; el('btn-preview').disabled = false;
+  el('btn-abort').style.display = 'none';
+  el('btn-copy-log').style.display = '';
+  if (failedFlags.length) el('btn-retry').style.display = '';
+  el('import-mode-hint').textContent = dryRun ? 'Preview complete — click Import to create flags.' : (fail ? `${fail} flag(s) failed — click Retry failed or check the log.` : 'Import complete.');
 }
-
-// ── Payload builders ──────────────────────────────────────────────────────────
-function buildRuleset(flag, fullRuleset, env, flagVariations=[]) {
-  const allRules = fullRuleset ? Object.values(fullRuleset.rules ?? {}) : [];
-  function getControlKey(rule) {
-    const vars = Object.values(rule.variations ?? {});
-    if (rule.baseline_variation_id) { const m=vars.find(v=>v.variation_id===rule.baseline_variation_id); if(m) return m.key; }
-    if (vars.some(v=>v.key==='off')) return 'off';
-    return null;
-  }
-  const treatmentOptKeys = [], allTreatments = new Map();
-  for (const rule of allRules) {
-    const ck = getControlKey(rule);
-    for (const v of Object.values(rule.variations??{})) {
-      if (ck!==null && v.key===ck) continue;
-      if (!allTreatments.has(v.key)) { allTreatments.set(v.key,{name:v.name??v.key,pct:v.percentage_included??0}); treatmentOptKeys.push(v.key); }
-    }
-  }
-  if (!allTreatments.size) {
-    // No rules — fall back to the flag's actual variations, skipping off/control
-    const controlKeys = new Set(['off', 'false', '0']);
-    const nonControlVars = flagVariations.filter(v => !controlKeys.has(v.key) && !v.archived);
-    if (nonControlVars.length) {
-      for (const v of nonControlVars) {
-        if (!allTreatments.has(v.key)) { allTreatments.set(v.key, {name: v.name??v.key, pct:0}); treatmentOptKeys.push(v.key); }
-      }
-    } else {
-      allTreatments.set('__on__',{name:'On',pct:0}); treatmentOptKeys.push('__on__');
-    }
-  }
-  const letters='abcdefghijklmnopqrstuvwxyz';
-  const optToMp=new Map();
-  treatmentOptKeys.forEach((k,i)=>optToMp.set(k, treatmentOptKeys.length===1?'treatment':`treatment_${letters[i]??i}`));
-  const totalV=1+allTreatments.size, even=parseFloat((1/totalV).toFixed(6));
-  const variants=[
-    { key:'control', value:false, is_control:true, split:even, description:'Control — Migrated from Optimizely' },
-    ...treatmentOptKeys.map(ok=>{ const mk=optToMp.get(ok),m=allTreatments.get(ok); return { key:mk, value:true, is_control:false, split:even, description:`Treatment — Migrated from Optimizely. Original key: ${ok}, Variant: ${m.name}` }; })
-  ];
-  const treatmentKeys=new Set(treatmentOptKeys.map(k=>optToMp.get(k)));
-  const rollout=[];
-  for (const rule of allRules) {
-    const ck=getControlKey(rule);
-    const ts=Object.values(rule.variations??{}).filter(v=>(ck===null||v.key!==ck)&&optToMp.has(v.key));
-    const tp=ts.reduce((s,v)=>s+(v.percentage_included??0),0);
-    const rp=Math.min(tp/10000,1);
-    const vs={};
-    const wp=ts.filter(v=>(v.percentage_included??0)>0);
-    let rem=1.0;
-    wp.forEach((v,i)=>{ const mk=optToMp.get(v.key); if(i===wp.length-1){vs[mk]=parseFloat(rem.toFixed(6));}else{const s=tp>0?parseFloat((v.percentage_included/tp).toFixed(6)):parseFloat((1/wp.length).toFixed(6));vs[mk]=s;rem-=s;} });
-    if(!Object.keys(vs).length){const ks=Array.from(treatmentKeys);let r2=1.0;ks.forEach((k,i)=>{const s=parseFloat((1/ks.length).toFixed(6));vs[k]=i===ks.length-1?parseFloat(r2.toFixed(6)):s;r2-=s;});}
-    rollout.push({name:rule.name??rule.key??null,cohort_definition:{},runtime_evaluation_definition:{},runtime_evaluation_rule:null,runtime_event_rule:null,cohort_hash:'711c452bb1e29c9571593d58f7fc17e5',rollout_percentage:rp,variant_override:null,variant_splits:vs});
-  }
-  if(!rollout.length){const fk=optToMp.get(treatmentOptKeys[0])??(treatmentOptKeys.length===1?'treatment':'treatment_a');rollout.push({name:null,cohort_definition:{},runtime_evaluation_definition:{},runtime_evaluation_rule:null,runtime_event_rule:null,cohort_hash:'711c452bb1e29c9571593d58f7fc17e5',rollout_percentage:0,variant_override:null,variant_splits:{[fk]:1.0}});}
-  return {variants,rollout};
-}
-
 function buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations=[]) {
   const status=flag.archived?'archived':flag.enabled?'enabled':'disabled';
   const sdk=flagSdks[flag.key]||'javascript';
@@ -1867,6 +1857,68 @@ function showErr(el, msg) {
   el.innerHTML=`<div class="alert alert-error">${msg}</div>`;
   el.style.display='';
 }
+
+// ── Abort ─────────────────────────────────────────────────────────────────────
+function abortImport() {
+  importAborted = true;
+  el('btn-abort').disabled = true;
+  el('btn-abort').textContent = 'Aborting…';
+}
+
+// ── Retry failed ──────────────────────────────────────────────────────────────
+async function retryFailed() {
+  if (!failedFlags.length) return;
+  const toRetry = [...failedFlags];
+  failedFlags = [];
+  el('btn-retry').style.display = 'none';
+  // temporarily add back to selectedKeys and re-run import for just these
+  selectedKeys = new Set(toRetry.map(f => f.key));
+  await runImport(false);
+}
+
+// ── Copy log ──────────────────────────────────────────────────────────────────
+function copyLog() {
+  const lines = Array.from(el('import-log').querySelectorAll('div')).map(d => d.textContent);
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = el('btn-copy-log');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy log'; }, 2000);
+  });
+}
+
+// ── Flag key validator ────────────────────────────────────────────────────────
+function validateFlagKey(key) {
+  // Mixpanel flag keys: lowercase alphanumeric, hyphens, underscores, max 256 chars
+  if (!key) return 'Key is empty';
+  if (key.length > 256) return `Key too long (${key.length} chars, max 256)`;
+  if (!/^[a-z0-9_-]+$/.test(key)) {
+    const bad = [...new Set(key.replace(/[a-z0-9_-]/g, '').split(''))].join('');
+    return `Invalid characters: ${bad} (only a-z, 0-9, _ and - allowed)`;
+  }
+  return null;
+}
+
+// ── mpFetch: fetch with 429 retry + network error handling ───────────────────
+async function mpFetch(url, options, maxRetries=3) {
+  let delay = 2000;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, options);
+    } catch (err) {
+      if (attempt === maxRetries) throw new Error(`Network error: ${err.message}`);
+      await sleep(delay); delay *= 2; continue;
+    }
+    if (res.status === 429) {
+      if (attempt === maxRetries) return res;
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '0') * 1000 || delay;
+      log(`   ⏳ Rate limited — waiting ${Math.round(retryAfter/1000)}s before retry ${attempt+1}/${maxRetries}…`, 'warn');
+      await sleep(retryAfter); delay *= 2; continue;
+    }
+    return res;
+  }
+}
+
 </script>
 </body>
 </html>
