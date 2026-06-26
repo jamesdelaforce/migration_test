@@ -507,7 +507,7 @@
               <option value="in">India — in.mixpanel.com</option>
             </select>
           </div>
-        </div>
+          </div>
         <div class="auth-preview" id="auth-preview" style="font-size:11px;font-family:var(--mono);color:var(--text-muted);background:var(--gray-02);padding:7px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-top:12px">
           Authorization header preview will appear once both credential fields are filled.
         </div>
@@ -1611,7 +1611,7 @@ function buildMpFlagPayload(flag, cfg) {
   const even = parseFloat((1 / variantList.length).toFixed(6));
 
   const mpVariants = variantList.map((k, i) => ({
-    key: k, value: k,
+    key: k, value: k === 'control' ? false : (variants[i-1]?.value ?? k),
     is_control: k === 'control',
     split: even,
     is_sticky: false,
