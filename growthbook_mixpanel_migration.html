@@ -282,7 +282,6 @@
 
   <div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap">
     <button class="btn btn-primary" id="btn-fetch" onclick="fetchFlags()">Fetch flags from GrowthBook</button>
-    <label class="dry-run-label"><input type="checkbox" id="dry-run" checked/> Dry run</label>
     <label class="dry-run-label" style="gap:8px">
       <span style="white-space:nowrap">Max requests / 10 s</span>
       <input type="number" id="rate-limit" value="50" min="1" max="200" step="5"
@@ -415,8 +414,9 @@
   <div class="log" id="import-log">Ready — press Run import to begin.</div>
   <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
     <button class="btn" onclick="goTo('select')">← Back</button>
-    <button class="btn btn-primary" id="btn-run" onclick="runImport()">Run import</button>
-    <span id="import-rate-hint" style="font-size:12px;color:var(--text-muted);margin-left:8px"></span>
+    <button class="btn btn-primary" id="btn-preview" onclick="runImport(true)">Preview</button>
+    <button class="btn btn-primary" id="btn-run" onclick="runImport(false)" style="background:var(--grass-06);border-color:var(--grass-06)">Import</button>
+    <span id="import-mode-hint" style="font-size:12px;color:var(--text-muted);margin-left:8px">Preview first to check payloads, then Import to create flags in Mixpanel.</span>
   </div>
 </div>
 
@@ -492,7 +492,6 @@ function getCfg() {
     mpProject:   v('mp-project'),
     mpWorkspace: v('mp-workspace'),
     mpRegion:    v('mp-region') || 'us',
-    dryRun:      el('dry-run').checked,
     rateLimit, delayMs,
   };
 }
@@ -1119,9 +1118,11 @@ function generateSnippets(sdk, mode, flagKey, variantList, token) {
 }
 
 // ── Import ────────────────────────────────────────────────────────────────────
-async function runImport() {
+async function runImport(dryRun=false) {
   const cfg = getCfg();
-  const btn = el('btn-run'); btn.disabled = true;
+  el('btn-run').disabled = true;
+  el('btn-preview').disabled = true;
+  el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.id));
   let flagOk = 0, skip = 0, fail = 0;
   el('s-total').textContent = selected.length;
@@ -1159,8 +1160,8 @@ async function runImport() {
       }
     }
 
-    if (cfg.dryRun) {
-      log(`   [DRY RUN] payload: ${JSON.stringify(payload)}`, 'warn');
+    if (dryRun) {
+      log(`   [PREVIEW] ${flag.id} — payload: ${JSON.stringify(payload)}`, 'warn');
       flagOk++;
     } else {
       const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
