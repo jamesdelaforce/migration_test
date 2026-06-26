@@ -1757,8 +1757,8 @@ function buildRuleset(flag, fullRuleset, env) {
   treatmentOptKeys.forEach((k,i)=>optToMp.set(k, treatmentOptKeys.length===1?'treatment':`treatment_${letters[i]??i}`));
   const totalV=1+allTreatments.size, even=parseFloat((1/totalV).toFixed(6));
   const variants=[
-    { key:'control', value:'control', is_control:true, split:even, description:'Control — Migrated from Optimizely' },
-    ...treatmentOptKeys.map(ok=>{ const mk=optToMp.get(ok),m=allTreatments.get(ok); return { key:mk, value:mk, is_control:false, split:even, description:`Treatment — Migrated from Optimizely. Original key: ${ok}, Variant: ${m.name}` }; })
+    { key:'control', value:false, is_control:true, split:even, description:'Control — Migrated from Optimizely' },
+    ...treatmentOptKeys.map(ok=>{ const mk=optToMp.get(ok),m=allTreatments.get(ok); return { key:mk, value:true, is_control:false, split:even, description:`Treatment — Migrated from Optimizely. Original key: ${ok}, Variant: ${m.name}` }; })
   ];
   const treatmentKeys=new Set(treatmentOptKeys.map(k=>optToMp.get(k)));
   const rollout=[];
@@ -1772,9 +1772,9 @@ function buildRuleset(flag, fullRuleset, env) {
     let rem=1.0;
     wp.forEach((v,i)=>{ const mk=optToMp.get(v.key); if(i===wp.length-1){vs[mk]=parseFloat(rem.toFixed(6));}else{const s=tp>0?parseFloat((v.percentage_included/tp).toFixed(6)):parseFloat((1/wp.length).toFixed(6));vs[mk]=s;rem-=s;} });
     if(!Object.keys(vs).length){const ks=Array.from(treatmentKeys);let r2=1.0;ks.forEach((k,i)=>{const s=parseFloat((1/ks.length).toFixed(6));vs[k]=i===ks.length-1?parseFloat(r2.toFixed(6)):s;r2-=s;});}
-    rollout.push({name:rule.name??rule.key??null,rollout_percentage:rp,variant_splits:vs});
+    rollout.push({name:rule.name??rule.key??null,cohort_definition:{},runtime_evaluation_definition:{},runtime_evaluation_rule:null,runtime_event_rule:null,cohort_hash:'711c452bb1e29c9571593d58f7fc17e5',rollout_percentage:rp,variant_override:null,variant_splits:vs});
   }
-  if(!rollout.length){const fk=optToMp.get(treatmentOptKeys[0])??(treatmentOptKeys.length===1?'treatment':'treatment_a');rollout.push({rollout_percentage:0,variant_splits:{[fk]:1.0}});}
+  if(!rollout.length){const fk=optToMp.get(treatmentOptKeys[0])??(treatmentOptKeys.length===1?'treatment':'treatment_a');rollout.push({name:null,cohort_definition:{},runtime_evaluation_definition:{},runtime_evaluation_rule:null,runtime_event_rule:null,cohort_hash:'711c452bb1e29c9571593d58f7fc17e5',rollout_percentage:0,variant_override:null,variant_splits:{[fk]:1.0}});}
   return {variants,rollout};
 }
 
@@ -1786,7 +1786,7 @@ function buildFlagPayload(flag, fullRuleset, experimentId, cfg) {
   // Sending a migration note string here caused flags to be created with a
   // garbage assignment key (e.g. "Migrated from Optimizely. Key: flag_key").
   // Omitting it lets Mixpanel default to distinct_id as the assignment key.
-  return{name:flag.name??flag.key,key:flag.key,description:flag.description??null,tags:Array.isArray(flag.tags)?flag.tags.map(String):[],status,serving_method:servingMethod,experiment_id:experimentId??null,ruleset:buildRuleset(flag,fullRuleset,cfg.optEnv)};
+  return{name:flag.name??flag.key,key:flag.key,description:flag.description??null,tags:Array.isArray(flag.tags)?flag.tags.map(String):[],context:'user',status,serving_method:servingMethod,experiment_id:experimentId??null,ruleset:buildRuleset(flag,fullRuleset,cfg.optEnv)};
 }
 
 function buildExperimentPayload(flag, abRules) {
