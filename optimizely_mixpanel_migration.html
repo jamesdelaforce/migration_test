@@ -763,6 +763,14 @@ async function doFetchRuleset(cfg, flagKey) {
   return res.json();
 }
 
+async function doFetchVariations(cfg, flagKey) {
+  const url = `https://api.optimizely.com/flags/v1/projects/${cfg.optProject}/flags/${flagKey}/variations`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.optToken}`, Accept: 'application/json' } });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.items ?? [];
+}
+
 // ── Table render ──────────────────────────────────────────────────────────────
 function renderTable() {
   const cfg = getCfg();
@@ -1695,6 +1703,12 @@ async function runImport() {
     const rt = flagRuleType(flag, cfg.optEnv);
     let fullRuleset = null, experimentId = null;
 
+    let flagVariations = [];
+    try {
+      flagVariations = await doFetchVariations(cfg, flag.key);
+      await sleep(80);
+    } catch(e) { log(`   ⚠ Could not fetch variations: ${e.message}`, 'warn'); }
+
     if (rt !== 'plain') {
       try { fullRuleset = await doFetchRuleset(cfg, flag.key); } catch(e) { log(`   ⚠ ${e.message}`, 'warn'); }
       await sleep(80);
@@ -1715,7 +1729,7 @@ async function runImport() {
       }
     }
 
-    const flagP = buildFlagPayload(flag, fullRuleset, experimentId, cfg);
+    const flagP = buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations);
     if (cfg.dryRun) { log(`   [DRY RUN] flag: ${flag.key}`, 'warn'); flagOk++; }
     else {
       const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, { method:'POST', headers:authHeaders(), body:JSON.stringify(flagP) });
@@ -1735,7 +1749,7 @@ async function runImport() {
 }
 
 // ── Payload builders ──────────────────────────────────────────────────────────
-function buildRuleset(flag, fullRuleset, env) {
+function buildRuleset(flag, fullRuleset, env, flagVariations=[]) {
   const allRules = fullRuleset ? Object.values(fullRuleset.rules ?? {}) : [];
   function getControlKey(rule) {
     const vars = Object.values(rule.variations ?? {});
@@ -1751,7 +1765,18 @@ function buildRuleset(flag, fullRuleset, env) {
       if (!allTreatments.has(v.key)) { allTreatments.set(v.key,{name:v.name??v.key,pct:v.percentage_included??0}); treatmentOptKeys.push(v.key); }
     }
   }
-  if (!allTreatments.size) { allTreatments.set('__on__',{name:'On',pct:0}); treatmentOptKeys.push('__on__'); }
+  if (!allTreatments.size) {
+    // No rules — fall back to the flag's actual variations, skipping off/control
+    const controlKeys = new Set(['off', 'false', '0']);
+    const nonControlVars = flagVariations.filter(v => !controlKeys.has(v.key) && !v.archived);
+    if (nonControlVars.length) {
+      for (const v of nonControlVars) {
+        if (!allTreatments.has(v.key)) { allTreatments.set(v.key, {name: v.name??v.key, pct:0}); treatmentOptKeys.push(v.key); }
+      }
+    } else {
+      allTreatments.set('__on__',{name:'On',pct:0}); treatmentOptKeys.push('__on__');
+    }
+  }
   const letters='abcdefghijklmnopqrstuvwxyz';
   const optToMp=new Map();
   treatmentOptKeys.forEach((k,i)=>optToMp.set(k, treatmentOptKeys.length===1?'treatment':`treatment_${letters[i]??i}`));
@@ -1778,7 +1803,7 @@ function buildRuleset(flag, fullRuleset, env) {
   return {variants,rollout};
 }
 
-function buildFlagPayload(flag, fullRuleset, experimentId, cfg) {
+function buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations=[]) {
   const status=flag.archived?'archived':flag.enabled?'enabled':'disabled';
   const sdk=flagSdks[flag.key]||'javascript';
   const servingMethod=SDKS.find(s=>s.id===sdk)?.serving||'server';
@@ -1786,7 +1811,7 @@ function buildFlagPayload(flag, fullRuleset, experimentId, cfg) {
   // Sending a migration note string here caused flags to be created with a
   // garbage assignment key (e.g. "Migrated from Optimizely. Key: flag_key").
   // Omitting it lets Mixpanel default to distinct_id as the assignment key.
-  return{name:flag.name??flag.key,key:flag.key,description:flag.description??null,tags:Array.isArray(flag.tags)?flag.tags.map(String):[],context:'user',status,serving_method:servingMethod,experiment_id:experimentId??null,ruleset:buildRuleset(flag,fullRuleset,cfg.optEnv)};
+  return{name:flag.name??flag.key,key:flag.key,description:flag.description??null,tags:Array.isArray(flag.tags)?flag.tags.map(String):[],context:'user',status,serving_method:servingMethod,experiment_id:experimentId??null,ruleset:buildRuleset(flag,fullRuleset,cfg.optEnv,flagVariations)};
 }
 
 function buildExperimentPayload(flag, abRules) {
