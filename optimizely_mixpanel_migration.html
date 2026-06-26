@@ -534,9 +534,6 @@
 
       <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
         <button class="btn btn-primary" id="btn-fetch" onclick="fetchFlags()">Fetch flags from Optimizely</button>
-        <label class="dry-run-label">
-          <input type="checkbox" id="dry-run" checked/> Dry run
-        </label>
       </div>
       <div id="config-error" style="display:none;margin-top:12px"></div>
     </div>
@@ -665,9 +662,11 @@
 
       <div class="log" id="import-log">Ready — press Run import to begin.</div>
 
-      <div style="display:flex;gap:8px;margin-top:16px">
+      <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
         <button class="btn" onclick="goTo('select')">← Back</button>
-        <button class="btn btn-primary" id="btn-run" onclick="runImport()">Run import</button>
+        <button class="btn btn-primary" id="btn-preview" onclick="runImport(true)">Preview</button>
+        <button class="btn btn-primary" id="btn-run" onclick="runImport(false)" style="background:var(--grass-06);border-color:var(--grass-06)">Import</button>
+        <span style="font-size:12px;color:var(--text-muted)" id="import-mode-hint">Preview first to check payloads, then Import to create flags in Mixpanel.</span>
       </div>
     </div>
 
@@ -1684,9 +1683,11 @@ function download(filename, content, mime) {
 }
 
 // ── Import ────────────────────────────────────────────────────────────────────
-async function runImport() {
+async function runImport(dryRun=false) {
   const cfg = getCfg();
-  const btn = el('btn-run'); btn.disabled = true;
+  el('btn-run').disabled = true;
+  el('btn-preview').disabled = true;
+  el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.key));
   let expOk=0, flagOk=0, fail=0;
 
@@ -1718,7 +1719,7 @@ async function runImport() {
       const abRules = (fullRuleset ? Object.values(fullRuleset.rules??{}) : flag.environments?.[cfg.optEnv]?.rules_detail??[]).filter(r=>r.type==='a/b');
       if (abRules.length) {
         const expP = buildExperimentPayload(flag, abRules);
-        if (cfg.dryRun) { log(`   [DRY RUN] experiment: "${expP.name}"`, 'warn'); expOk++; }
+        if (dryRun) { log(`   [PREVIEW] experiment: "${expP.name}" — payload: ${JSON.stringify(expP)}`, 'warn'); expOk++; }
         else {
           const res = await fetch(`https://${mpDomain}/api/app/workspaces/${cfg.mpWorkspace}/experiments`, { method:'POST', headers:authHeaders(), body:JSON.stringify(expP) });
           const body = await res.json().catch(()=>({}));
@@ -1730,7 +1731,7 @@ async function runImport() {
     }
 
     const flagP = buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations);
-    if (cfg.dryRun) { log(`   [DRY RUN] flag: ${flag.key}`, 'warn'); flagOk++; }
+    if (dryRun) { log(`   [PREVIEW] ${flag.key} — payload: ${JSON.stringify(flagP)}`, 'warn'); flagOk++; }
     else {
       const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, { method:'POST', headers:authHeaders(), body:JSON.stringify(flagP) });
       const body = await res.json().catch(()=>({}));
@@ -1830,7 +1831,7 @@ const trunc=(s,m)=>s&&s.length>m?s.slice(0,m-1)+'…':(s||'');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 function getCfg() {
-  return { optToken:v('opt-token'), optProject:v('opt-project'), optEnv:v('opt-env')||'production', mpProject:v('mp-project'), mpWorkspace:v('mp-workspace'), mpRegion:v('mp-region')||'us', dryRun:el('dry-run').checked };
+  return { optToken:v('opt-token'), optProject:v('opt-project'), optEnv:v('opt-env')||'production', mpProject:v('mp-project'), mpWorkspace:v('mp-workspace'), mpRegion:v('mp-region')||'us' };
 }
 function authHeaders() {
   return { Authorization:`Basic ${encodedAuth}`, 'Content-Type':'application/json', Accept:'application/json' };
