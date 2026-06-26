@@ -276,7 +276,7 @@
           <option value="in">India — in.mixpanel.com</option>
         </select>
       </div>
-    </div>
+          </div>
     <div class="auth-preview" id="mp-auth-preview">Mixpanel Authorization header preview will appear once credentials are filled.</div>
   </div>
 
@@ -836,8 +836,10 @@ function buildMpFlagPayload(flag, cfg) {
   const even          = parseFloat((1 / variantList.length).toFixed(6));
   const defaultVal    = flag.defaultValue ?? 'false';
 
+  const parseGbValue = v => { try { return JSON.parse(v); } catch { return v; } };
   const mpVariants = variantList.map((k, i) => ({
-    key: k, value: k, is_control: k === 'control',
+    key: k, value: k === 'control' ? parseGbValue(defaultVal) : parseGbValue(variants[i-1]?.gbValue ?? k),
+    is_control: k === 'control',
     split: even, is_sticky: false,
     description: k === 'control'
       ? `Control — Migrated from GrowthBook. Default value: ${defaultVal}`
