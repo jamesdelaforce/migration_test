@@ -4,7 +4,6 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Statsig → Mixpanel Migration Tool</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20width%3D%22140%22%20height%3D%22140%22%20viewBox%3D%220%200%20140%20140%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%0A%3Cpath%20d%3D%22M48.0089%2061.4121H61.3939C58.0516%2059.3212%2056.8002%2056.3908%2055.1212%2050.9576L50.0998%2032.3454C47.803%2023.9817%2045.918%2020.0059%2036.7149%2020.0059H17.4849V25.0272H20.2094C25.8485%2025.0272%2026.4821%2027.1181%2028.1612%2033.3908L32.5489%2049.7062C34.8457%2057.658%2038.4098%2061.4121%2048.0247%2061.4121H48.0089ZM78.9765%2061.4121H92.3456C101.961%2061.4121%20105.303%2057.6422%20107.616%2049.7062L112.003%2033.3908C113.682%2027.1181%20114.506%2025.0272%20119.955%2025.0272H122.68V20.0059H103.655C94.2464%2020.0059%2092.3614%2023.7758%2090.2705%2032.3454L85.2492%2050.9576C83.5701%2056.5967%2082.3188%2059.3212%2078.9765%2061.4121ZM61.3939%2078.963H78.977L78.9765%2061.4121H61.3939V78.963ZM17.4849%20120.369H36.7149C45.918%20120.369%2047.803%20116.393%2050.0998%20108.03L55.1212%2089.4176C56.8002%2083.9844%2058.0516%2081.054%2061.3939%2078.963H48.0089C38.3939%2078.963%2034.8299%2082.733%2032.533%2090.6689L28.1453%20106.984C26.4663%20113.257%2025.8485%20115.348%2020.1935%20115.348H17.4849V120.369ZM103.624%20120.369H122.648V115.348H119.923C114.49%20115.348%20113.651%20113.257%20111.972%20106.984L107.584%2090.6689C105.287%2082.7172%20101.945%2078.963%2092.3139%2078.963H78.977C82.3193%2081.054%2083.5226%2083.7785%2085.2017%2089.4176L90.223%20108.03C92.3139%20116.599%2094.1989%20120.369%20103.608%20120.369H103.624Z%22%20fill%3D%22%237856FF%22/%3E%0A%3C/svg%3E%0A"/>
 <style>
   /* ── Mixpanel Brand Tokens ── */
   :root {
@@ -486,6 +485,10 @@
         <strong>secret</strong> — only run this tool locally / on a trusted machine, and never share the page with the key filled in.
       </div>
 
+      <div class="alert alert-ok" id="restore-banner" style="display:none">
+        ↩ Restored your previous session from this browser — credentials, fetched flags, and selections were reloaded. Use <strong>Clear saved state</strong> to wipe them.
+      </div>
+
       <div class="section-label">Statsig</div>
       <div class="card">
         <div class="grid-2">
@@ -543,6 +546,11 @@
         <label class="dry-run-label">
           <input type="checkbox" id="dry-run" checked/> Dry run
         </label>
+        <span class="spacer"></span>
+        <button class="btn btn-sm" onclick="clearSaved()" title="Forget saved credentials, fetched flags, and selections">↺ Clear saved state</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px">
+        Your entries and fetched data are saved in this browser's local storage so the page remembers state across reloads. This includes credentials — clear them when done on shared machines.
       </div>
       <div id="config-error" style="display:none;margin-top:12px"></div>
     </div>
@@ -660,7 +668,7 @@
       </div>
 
       <div class="alert alert-warn" style="margin-bottom:20px">
-        <strong>⚠ Variant assignment key</strong> — The Mixpanel Management API does not support setting the variant assignment key at flag creation time. All imported flags will default to <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">distinct_id</code> as the bucketing key. If any gate or experiment in Statsig bucketed on a different unit ID (e.g. <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">stableID</code>, <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">userID</code>, or a custom ID), you must update the assignment key manually in the Mixpanel UI <strong>before enabling those flags</strong>. This cannot be changed once a flag is enabled.
+        <strong>⚠ Variant assignment key</strong> — The assignment key (context field) will be automatically mapped from Statsig's idType: <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">userID</code> or <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">stableID</code> → <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">distinct_id</code>, <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">deviceID</code> → <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">$device_id</code>. If any gate or experiment in Statsig used a different unit ID that doesn't map correctly, you must update the assignment key manually in the Mixpanel UI <strong>before enabling those flags</strong>. This cannot be changed once a flag is enabled.
       </div>
 
       <div class="stats-row">
@@ -731,6 +739,8 @@ function goTo(id) {
   if (id === 'export') renderReport();
   if (id === 'code') renderCodeBlocks();
   if (id === 'import') el('s-total').textContent = selectedKeys.size;
+  lastView = id;
+  persist();
 }
 
 // ── Fetch from Statsig ──────────────────────────────────────────────────────────
@@ -863,6 +873,7 @@ function renderTable() {
 function toggleFlag(key, checked) {
   if (checked) selectedKeys.add(key); else selectedKeys.delete(key);
   renderTable();
+  persist();
 }
 
 function setSdk(key, sdk) {
@@ -875,10 +886,12 @@ function setSdk(key, sdk) {
       `<option value="${m.id}" ${m.id === modes[0].id ? 'selected' : ''}>${m.label}</option>`
     ).join('');
   }
+  persist();
 }
 
 function setEvalModeFromTable(key, mode) {
   flagEvalModes[key] = mode;
+  persist();
 }
 
 function toggleAll() {
@@ -886,6 +899,7 @@ function toggleAll() {
   const checked = el('chk-all').checked;
   vis.forEach(f => checked ? selectedKeys.add(f.key) : selectedKeys.delete(f.key));
   renderTable();
+  persist();
 }
 
 // ── Report render ─────────────────────────────────────────────────────────────
@@ -1068,6 +1082,7 @@ function setEvalMode(flagKey, sdk, mode) {
     const pre = el(`${flagKey}-${panel}`);
     if (pre) pre.innerHTML = snippets[panel];
   });
+  persist();
 }
 
 function copyAllSnippets(flagKey) {
@@ -1693,10 +1708,24 @@ async function runImport() {
   for (let i = 0; i < selected.length; i++) {
     const flag = selected[i];
     log(`→ ${flag.key} (${flag.source})`, 'info');
+
+    // Log the raw Statsig data - FULL JSON
+    log(`   📥 STATSIG DATA (full):`, 'info');
+    const statsigJson = JSON.stringify(flag, null, 2);
+    console.log('===== STATSIG FLAG DATA (FULL) =====\n' + statsigJson);
+    // Split into chunks for the UI log
+    const lines = statsigJson.split('\n');
+    lines.forEach(line => log(`   ${line}`, 'info'));
+
     let experimentId = null;
 
     if (flag.source === 'experiment') {
       const expP = buildExperimentPayload(flag);
+      log(`   📤 EXPERIMENT PAYLOAD (full):`, 'info');
+      const expJson = JSON.stringify(expP, null, 2);
+      console.log('===== EXPERIMENT PAYLOAD (FULL) =====\n' + expJson);
+      expJson.split('\n').forEach(line => log(`   ${line}`, 'info'));
+
       if (cfg.dryRun) { log(`   [DRY RUN] experiment: "${expP.name}"`, 'warn'); expOk++; }
       else {
         const res = await fetch(`https://${mpDomain}/api/app/workspaces/${cfg.mpWorkspace}/experiments`, { method:'POST', headers:authHeaders(), body:JSON.stringify(expP) });
@@ -1708,13 +1737,25 @@ async function runImport() {
     }
 
     const flagP = buildFlagPayload(flag, experimentId, cfg);
+    log(`   📤 FLAG PAYLOAD (full):`, 'info');
+    const flagJson = JSON.stringify(flagP, null, 2);
+    console.log('===== FLAG PAYLOAD (FULL) =====\n' + flagJson);
+    flagJson.split('\n').forEach(line => log(`   ${line}`, 'info'));
+
     if (cfg.dryRun) { log(`   [DRY RUN] flag: ${flag.key}`, 'warn'); flagOk++; }
     else {
       const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, { method:'POST', headers:authHeaders(), body:JSON.stringify(flagP) });
       const body = await res.json().catch(()=>({}));
       if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
       else if (res.status===409) { log(`   ⏭ Skipped (already exists)`, 'warn'); flagOk++; }
-      else { log(`   ✗ Failed: ${body?.error??body?.message??'HTTP '+res.status}`, 'err'); fail++; }
+      else {
+        log(`   ✗ Failed: ${body?.error??body?.message??'HTTP '+res.status}`, 'err');
+        const errorJson = JSON.stringify(body, null, 2);
+        console.error('===== API ERROR RESPONSE =====\n' + errorJson);
+        log(`   ERROR DETAILS:`, 'err');
+        errorJson.split('\n').forEach(line => log(`   ${line}`, 'err'));
+        fail++;
+      }
       await sleep(120);
     }
 
@@ -1727,13 +1768,25 @@ async function runImport() {
 }
 
 // ── Payload builders ──────────────────────────────────────────────────────────
+
+// Map Statsig idType to Mixpanel context (assignment key)
+function getContextFromIdType(idType) {
+  const mapping = {
+    'userID': 'distinct_id',
+    'stableID': '$device_id',      // Statsig's stable ID maps to device_id
+  };
+
+  // If it's a custom ID or unknown, pass through as-is (or default to distinct_id if null/empty)
+  return mapping[idType] || idType || 'distinct_id';
+}
+
 function buildRuleset(flag) {
   const treatments = buildVariantNames(flag);  // [{ mpKey, statsigKey, name }]
   const totalV = 1 + treatments.length;
   const even = parseFloat((1/totalV).toFixed(6));
   const variants = [
-    { key:'control', value:'control', is_control:true, split:even, description:'Control — Migrated from Statsig' },
-    ...treatments.map(t => ({ key:t.mpKey, value:t.mpKey, is_control:false, split:even, description:`Treatment — Migrated from Statsig. Original: ${t.statsigKey}` })),
+    { key:'control', value:true, is_control:true, is_sticky:false, split:even, description:'Control — Migrated from Statsig' },
+    ...treatments.map(t => ({ key:t.mpKey, value:false, is_control:false, is_sticky:false, split:even, description:`Treatment — Migrated from Statsig. Original: ${t.statsigKey}` })),
   ];
 
   // Rollout percentage
@@ -1755,22 +1808,41 @@ function buildRuleset(flag) {
     rem -= s;
   });
 
-  return { variants, rollout: [{ rollout_percentage: rolloutPct, variant_splits: vs }] };
+  return {
+    test: null,
+    variants,
+    rollout: [{
+      name: null,
+      runtime_evaluation_rule: null,
+      runtime_event_rule: null,
+      cohort_hash: null,
+      variant_override: null,
+      rollout_percentage: rolloutPct,
+      variant_splits: vs
+    }]
+  };
 }
 
 function buildFlagPayload(flag, experimentId, cfg) {
   const status = flagStatus(flag);
   const sdk = flagSdks[flag.key] || 'javascript';
   const servingMethod = SDKS.find(s=>s.id===sdk)?.serving || 'server';
-  // 'context' (assignment key) intentionally omitted so Mixpanel defaults to distinct_id.
+  const context = getContextFromIdType(flag.idType);  // Map Statsig idType to Mixpanel context
+
   return {
     name: flag.name ?? flag.key,
     key: flag.key,
     description: flag.description || null,
     tags: Array.isArray(flag.tags) ? flag.tags.map(String) : [],
     status,
+    data_group_id: null,
     serving_method: servingMethod,
     experiment_id: experimentId ?? null,
+    workspace_id: null,
+    is_experiment_active: null,
+    hash_salt: null,
+    reset_hash_salt: null,
+    context: context,
     ruleset: buildRuleset(flag),
   };
 }
@@ -1855,6 +1927,69 @@ function showErr(elem, msg) {
   elem.innerHTML=`<div class="alert alert-error">${msg}</div>`;
   elem.style.display='';
 }
+
+// ── State persistence (localStorage) ──────────────────────────────────────────
+// Keeps credentials, fetched flags, selections, SDK/eval-mode choices, and the
+// current step across reloads so troubleshooting doesn't require re-fetching.
+const STORAGE_KEY = 'statsig_mp_migration_state_v1';
+const FORM_FIELDS = ['st-key','mp-user','mp-secret','mp-project','mp-workspace','mp-token','mp-region'];
+const FORM_CHECKS = ['imp-gates','imp-exps','dry-run'];
+let lastView = 'config';
+
+function persist() {
+  try {
+    const form = {};
+    FORM_FIELDS.forEach(id => { const n = el(id); if (n) form[id] = n.value; });
+    FORM_CHECKS.forEach(id => { const n = el(id); if (n) form[id] = n.checked; });
+    const state = {
+      form,
+      flags: allFlags.map(({ raw, ...rest }) => rest),  // drop bulky raw payloads
+      selected: [...selectedKeys],
+      sdks: flagSdks,
+      modes: flagEvalModes,
+      view: lastView,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) { /* storage full / unavailable — non-fatal */ }
+}
+
+function restoreState() {
+  let state;
+  try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }
+  catch (e) { return; }
+  if (!state) return;
+
+  const f = state.form || {};
+  FORM_FIELDS.forEach(id => { const n = el(id); if (n && f[id] != null) n.value = f[id]; });
+  FORM_CHECKS.forEach(id => { const n = el(id); if (n && f[id] != null) n.checked = f[id]; });
+  updateAuth();
+
+  if (Array.isArray(state.flags) && state.flags.length) {
+    allFlags = state.flags;
+    selectedKeys = new Set(state.selected || []);
+    flagSdks = state.sdks || {};
+    flagEvalModes = state.modes || {};
+    renderTable();
+    updateNavDone('config');
+    const banner = el('restore-banner');
+    if (banner) banner.style.display = '';
+  }
+  if (state.view) goTo(state.view);
+}
+
+function clearSaved() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+  location.reload();
+}
+
+// Attach persistence listeners, then restore any prior session.
+[...FORM_FIELDS, ...FORM_CHECKS].forEach(id => {
+  const node = el(id);
+  if (!node) return;
+  const ev = (node.tagName === 'SELECT' || node.type === 'checkbox') ? 'change' : 'input';
+  node.addEventListener(ev, persist);
+});
+restoreState();
 </script>
 </body>
 </html>
