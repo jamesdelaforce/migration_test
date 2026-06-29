@@ -952,7 +952,11 @@ async function doFetchFlags(cfg) {
     url.searchParams.set('limit', limit);
     url.searchParams.set('offset', offset);
     url.searchParams.set('env', cfg.ldEnv);
-    url.searchParams.set('summary', 'true');
+    // summary=0 is REQUIRED: with the default summary representation LaunchDarkly
+    // OMITS each environment's rules, fallthrough, targets and prerequisites, which
+    // are exactly the fields buildMpRollout()/ldRisks() need. summary=0 + env returns
+    // the full per-environment targeting config.
+    url.searchParams.set('summary', '0');
     const res = await fetch(url, {
       headers: {
         Authorization: cfg.ldToken,
@@ -1395,6 +1399,8 @@ async function runImport(dryRun=false) {
   el('progress-bar').style.width = '0%';
   const mpDomain = cfg.mpRegion === 'us' ? 'mixpanel.com' : `${cfg.mpRegion}.mixpanel.com`;
 
+  log('ℹ Reminder: translated clauses become Mixpanel runtime rules. Mixpanel LOCAL evaluation only supports a single exact-match condition — multi-condition rules always evaluate to TRUE there. Use REMOTE evaluation for any flag that relies on targeting.', 'warn');
+
   // ── Pre-flight key validation ────────────────────────────────────────────
   const keyErrors = [];
   for (const flag of selected) {
@@ -1652,7 +1658,7 @@ function buildMpFlagPayload(flag, cfg) {
   const even = parseFloat((1 / variantList.length).toFixed(6));
 
   const mpVariants = variantList.map((k, i) => ({
-    key: k, value: k === 'control' ? false : (variants[i-1]?.value ?? k),
+    key: k, value: k === 'control' ? (controlVar?.value ?? false) : (variants[i-1]?.value ?? k),
     is_control: k === 'control',
     split: even,
     is_sticky: false,
