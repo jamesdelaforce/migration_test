@@ -1,0 +1,43 @@
+// working payload for mixpanel feature flags api
+
+// curl --request POST \
+//   --url https://mixpanel.com/api/app/projects/4036811/workspaces/4533074/feature-flags \
+//   --header 'Authorization: Basic ZmZldGVzdC4zNzllYjQubXAtc2VydmljZS1hY2NvdW50OllKeDAzNWt4bDcwbTlBM0ZpeHFONWFSNjF0T29QREFT' \
+//   --header 'Content-Type: application/json' \
+//   --data '
+
+{
+  "name": "test",
+  "key": "test",
+  "description": null,
+  "tags": [],
+  "status": "enabled",
+  "serving_method": "client",
+  "experiment_id": null,
+  "ruleset": {
+    "variants": [
+      {
+        "key": "control",
+        "value": "control",
+        "is_control": true,
+        "split": 0.5,
+        "description": "Control — Migrated from Statsig"
+      },
+      {
+        "key": "treatment",
+        "value": "treatment",
+        "is_control": false,
+        "split": 0.5,
+        "description": "Treatment — Migrated from Statsig. Original: pass"
+      }
+    ],
+    "rollout": [
+      {
+        "rollout_percentage": 1,
+        "variant_splits": {
+          "treatment": 1
+        }
+      }
+    ]
+  }
+}

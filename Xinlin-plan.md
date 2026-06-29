@@ -1,5 +1,4 @@
 # Statsig Migration Guide - Native SDK route 
-29 Jun 2026
 
 ## Outline of what this does
 1. authenticate statsig account against the API

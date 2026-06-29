@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statsig Experiment Test - the_seahag</title>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .button {
+      background: #7856FF;
+      color: white;
+      border: none;
+      padding: 16px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 10px 10px 10px 0;
+    }
+    .button:hover {
+      background: #5F41CF;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(120, 86, 255, 0.3);
+    }
+    .button:active {
+      transform: translateY(0);
+    }
+    .button.secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+    .button.secondary:hover {
+      background: #d0d0d0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .info {
+      background: #f0f9fe;
+      border-left: 4px solid #72BEF4;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background: #ebf6f1;
+      border-left: 4px solid #3BA974;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 4px;
+      display: none;
+    }
+    .output {
+      background: #2E1670;
+      color: #C1B1FF;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: 'Monaco', monospace;
+      font-size: 14px;
+      margin-top: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .output-line {
+      margin: 5px 0;
+    }
+    .output-line.success {
+      color: #7FE1D8;
+    }
+    .output-line.error {
+      color: #FFBFB1;
+    }
+    .output-line.info {
+      color: #333;
+    }
+    code {
+      background: rgba(120, 86, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', monospace;
+      font-size: 14px;
+    }
+    .user-input {
+      margin: 20px 0;
+    }
+    .user-input label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    .user-input input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    .user-input input:focus {
+      outline: none;
+      border-color: #7856FF;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Statsig Experiment Test</h1>
+    <div class="subtitle">Experiment: <code>the_seahag</code></div>
+
+    <div class="info">
+      <strong>📊 How this works:</strong><br>
+      1. Enter a user ID below (or use the default)<br>
+      2. Click "Initialize Statsig" to set up the client<br>
+      3. Click "Trigger Experiment Exposure" to log exposure event
+    </div>
+
+    <div class="user-input">
+      <label for="user-id">User ID (for consistent bucketing):</label>
+      <input type="text" id="user-id" value="test-user-123" placeholder="Enter user ID">
+    </div>
+
+    <div>
+      <button class="button secondary" onclick="initializeStatsig()">1. Initialize Statsig</button>
+      <button class="button" onclick="triggerExposure()" id="exposure-btn" disabled>2. Trigger Experiment Exposure</button>
+    </div>
+
+    <div class="success" id="success-msg">
+      ✅ <strong>Exposure event logged!</strong> Check your Statsig console for the event.
+    </div>
+
+    <div class="output" id="output">
+      <div class="output-line info">Waiting for initialization...</div>
+    </div>
+  </div>
+
+  <!-- Statsig SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/statsig-js@4.42.0/build/statsig-prod-web-sdk.min.js"></script>
+
+  <script>
+    let statsigInitialized = false;
+    let experiment = null;
+    const CLIENT_KEY = 'client-kjnZlelR5fm9XPHvDUePDl84c7A3nTQyhw7zE83BiGQ';
+    const EXPERIMENT_KEY = 'the_seahag';
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const line = document.createElement('div');
+      line.className = `output-line ${type}`;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function initializeStatsig() {
+      const userId = document.getElementById('user-id').value || 'test-user-123';
+
+      log('🚀 Initializing Statsig client...', 'info');
+
+      try {
+        // Initialize Statsig with user object (singleton pattern)
+        await statsig.initialize(CLIENT_KEY, {
+          userID: userId
+        });
+
+        statsigInitialized = true;
+        log(`✓ Statsig initialized for user: ${userId}`, 'success');
+
+        // Get the experiment
+        experiment = statsig.getExperiment(EXPERIMENT_KEY);
+
+        log(`✓ Experiment loaded: ${EXPERIMENT_KEY}`, 'success');
+        log(`  - Group Name: ${experiment.getGroupName()}`, 'info');
+        log(`  - All Values: ${JSON.stringify(experiment.value)}`, 'info');
+
+        // Enable the exposure button
+        document.getElementById('exposure-btn').disabled = false;
+
+      } catch (error) {
+        log(`✗ Error initializing Statsig: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+
+    function triggerExposure() {
+      if (!statsigInitialized || !experiment) {
+        log('✗ Please initialize Statsig first!', 'error');
+        return;
+      }
+
+      log('📤 Triggering exposure event...', 'info');
+
+      try {
+        const groupName = experiment.getGroupName();
+        const experimentValue = experiment.value;
+
+        // Method 1: Explicitly log exposure
+        const exposureEvent = {
+          eventName: 'statsig::experiment_exposure',
+          value: null,
+          metadata: {
+            experimentName: EXPERIMENT_KEY,
+            groupName: groupName
+          }
+        };
+
+        statsig.logEvent(exposureEvent.eventName, exposureEvent.value, exposureEvent.metadata);
+
+        // Log to browser console
+        console.group('🧪 Statsig Experiment Exposure');
+        console.log('Event Name:', exposureEvent.eventName);
+        console.log('Experiment:', EXPERIMENT_KEY);
+        console.log('Group/Variant:', groupName);
+        console.log('Full Event Object:', exposureEvent);
+        console.log('Experiment Value:', experimentValue);
+        console.groupEnd();
+
+        // Method 2: Access a parameter (automatically logs exposure)
+        const paramValue = experiment.get('some_param', 'default');
+
+        log(`✓ Exposure event logged!`, 'success');
+        log(`  - Experiment: ${EXPERIMENT_KEY}`, 'success');
+        log(`  - User Group: ${groupName}`, 'success');
+        log(`  - Parameter Value: ${paramValue}`, 'info');
+
+        // Show success message
+        document.getElementById('success-msg').style.display = 'block';
+
+        // Note: Statsig automatically batches and sends events periodically
+        log('ℹ Events will be sent automatically to Statsig', 'info');
+        log('ℹ Check browser console (F12) for full event details', 'info');
+
+      } catch (error) {
+        log(`✗ Error logging exposure: ${error.message}`, 'error');
+        console.error('Statsig Exposure Error:', error);
+      }
+    }
+
+    // Log page load
+    log('Page loaded. Click "Initialize Statsig" to begin.', 'info');
+  </script>
+</body>
+</html>
