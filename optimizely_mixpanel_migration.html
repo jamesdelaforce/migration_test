@@ -1761,6 +1761,16 @@ async function runImport(dryRun=false) {
 
     const flagP = buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations);
 
+    // Surface targeting that can't be auto-migrated: Optimizely audiences map to
+    // saved audience definitions and must be recreated as Mixpanel cohorts.
+    const optRules = fullRuleset
+      ? Object.values(fullRuleset.rules ?? {})
+      : (flag.environments?.[cfg.optEnv]?.rules_detail ?? []);
+    const audienceRules = optRules.filter(optRuleHasAudience);
+    if (audienceRules.length) {
+      log(`   ⚠ ${audienceRules.length} rule(s) use Optimizely audiences — targeting dropped on import; recreate as Mixpanel cohorts manually`, 'err');
+    }
+
     if (dryRun) {
       const rs = flagP.ruleset;
       log(`   [PREVIEW] ${rs.variants.length} variant(s), ${rs.rollout.length} rollout rule(s)`, 'warn');
@@ -1794,14 +1804,152 @@ async function runImport(dryRun=false) {
   if (failedFlags.length) el('btn-retry').style.display = '';
   el('import-mode-hint').textContent = dryRun ? 'Preview complete — click Import to create flags.' : (fail ? `${fail} flag(s) failed — click Retry failed or check the log.` : 'Import complete.');
 }
+// ── Audience detection ────────────────────────────────────────────────────────
+// Optimizely targeting lives in `audience_conditions` (a nested AST referencing
+// saved audience definitions by ID) and `audience_ids`. These reference audiences
+// by ID, not inline attributes, so they CANNOT be auto-translated into Mixpanel
+// runtime rules — they must be recreated as Mixpanel cohorts. We detect their
+// presence so the import log can warn, and leave runtime_evaluation_rule null.
+function optRuleHasAudience(rule) {
+  const ac = rule.audience_conditions;
+  const hasConds = Array.isArray(ac)
+    ? ac.length > 0
+    : (ac && typeof ac === 'object' ? Object.keys(ac).length > 0 : !!ac);
+  const hasIds = Array.isArray(rule.audience_ids) && rule.audience_ids.length > 0;
+  return hasConds || hasIds;
+}
+
+// ── Ruleset builder ───────────────────────────────────────────────────────────
+// Builds the Mixpanel { variants, rollout } object for a flag. Mirrors the
+// structure produced by the LaunchDarkly / GrowthBook tools.
+//   • One rollout entry per Optimizely rule, in ruleset order.
+//   • rollout_percentage  ← rule.percentage_included (0–10000 scale → 0–1).
+//   • variant_splits      ← each rule's treatment variations' percentage_included,
+//                            normalised among treatments (control is implicit).
+//   • runtime_evaluation_rule is always null (audiences can't be auto-translated).
+function buildRuleset(flag, fullRuleset, env, flagVariations = []) {
+  const variants    = buildVariantNames(flag, env);         // [{ optKey, mpKey, name }]
+  const variantList = ['control', ...variants.map(vr => vr.mpKey)];
+  const even        = parseFloat((1 / variantList.length).toFixed(6));
+
+  // optKey → mpKey map (treatments only; control is implicit)
+  const optKeyToMpKey = new Map();
+  variants.forEach(vr => optKeyToMpKey.set(vr.optKey, vr.mpKey));
+
+  // Same control-detection used in buildVariantNames() / buildExperimentPayload()
+  function getControlKey(rule) {
+    const vars = Object.values(rule.variations ?? {});
+    if (rule.baseline_variation_id) {
+      const m = vars.find(v => v.variation_id === rule.baseline_variation_id);
+      if (m) return m.key;
+    }
+    if (vars.some(v => v.key === 'off')) return 'off';
+    return null;
+  }
+
+  const allRules = fullRuleset
+    ? Object.values(fullRuleset.rules ?? {})
+    : (flag.environments?.[env]?.rules_detail ?? []);
+
+  // ── Variants ────────────────────────────────────────────────────────────────
+  const mpVariants = variantList.map((k, i) => {
+    const isControl = k === 'control';
+    const optKey    = isControl ? null : variants[i - 1]?.optKey;
+    return {
+      key: k,
+      value: isControl ? false : (optKey ?? k),
+      is_control: isControl,
+      split: even,
+      is_sticky: false,
+      description: isControl
+        ? 'Control — Migrated from Optimizely.'
+        : `Treatment — Migrated from Optimizely. Original variation key: ${optKey ?? k}`,
+    };
+  });
+
+  // ── Rollout entries (one per Optimizely rule, in order) ─────────────────────
+  // Mixpanel rollout groups model control via the fallback (like the LD tool):
+  // users NOT in rollout_percentage fall through to the control fallback. So a
+  // 50/50 A/B (off=control, on=treatment) becomes rollout_percentage 0.5 with
+  // variant_splits {treatment:1.0}, NOT rollout 1.0 (which would give everyone the
+  // treatment and silently drop the control allocation).
+  const rollout = [];
+  for (const rule of allRules) {
+    const ruleVars = Object.values(rule.variations ?? {});
+    const ck       = getControlKey(rule);
+
+    const treatmentVars  = ck !== null ? ruleVars.filter(v => v.key !== ck) : ruleVars;
+    const allVarsTotal   = ruleVars.reduce((s, vr) => s + (vr.percentage_included ?? 0), 0);
+    const treatmentTotal = treatmentVars.reduce((s, vr) => s + (vr.percentage_included ?? 0), 0);
+
+    // Distribute the treatment traffic among treatments (normalised within treatments)
+    const variantSplits = {};
+    let rem = 1.0;
+    treatmentVars.forEach((vrn, idx, arr) => {
+      const mk = optKeyToMpKey.get(vrn.key);
+      if (!mk) return;
+      if (idx === arr.length - 1) {
+        variantSplits[mk] = parseFloat(rem.toFixed(6));
+      } else {
+        const s = treatmentTotal > 0
+          ? parseFloat(((vrn.percentage_included ?? 0) / treatmentTotal).toFixed(6))
+          : parseFloat((1 / treatmentVars.length).toFixed(6));
+        variantSplits[mk] = s;
+        rem -= s;
+      }
+    });
+    if (!Object.keys(variantSplits).length) continue; // no mappable treatment in this rule
+
+    // Effective treatment reach = rule traffic gate × treatments' share of the rule.
+    // (The control/baseline share is intentionally excluded — served via fallback.)
+    const ruleGate       = Math.min((rule.percentage_included ?? 10000) / 10000, 1);
+    const treatmentShare = allVarsTotal > 0
+      ? treatmentTotal / allVarsTotal
+      : (treatmentVars.length ? treatmentVars.length / ruleVars.length : 1);
+    const rolloutPct = parseFloat((ruleGate * treatmentShare).toFixed(6));
+
+    rollout.push({
+      name: rule.name || rule.key || null,
+      cohort_definition: {},
+      runtime_evaluation_definition: {},
+      runtime_evaluation_rule: null, // Optimizely audiences can't be auto-translated
+      runtime_event_rule: null,
+      cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
+      rollout_percentage: rolloutPct,
+      variant_override: null,
+      variant_splits: variantSplits,
+    });
+  }
+
+  // ── Default fallthrough rule (off by default) ───────────────────────────────
+  if (!rollout.length) {
+    const firstTreatment = variants[0]?.mpKey || 'treatment';
+    rollout.push({
+      name: null,
+      cohort_definition: {},
+      runtime_evaluation_definition: {},
+      runtime_evaluation_rule: null,
+      runtime_event_rule: null,
+      cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
+      rollout_percentage: 0,
+      variant_override: null,
+      variant_splits: { [firstTreatment]: 1.0 },
+    });
+  }
+
+  return { variants: mpVariants, rollout };
+}
+
 function buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations=[]) {
   const status=flag.archived?'archived':flag.enabled?'enabled':'disabled';
   const sdk=flagSdks[flag.key]||'javascript';
   const servingMethod=SDKS.find(s=>s.id===sdk)?.serving||'server';
-  // Omit 'context' entirely — it maps to the assignment key in Mixpanel's UI.
-  // Sending a migration note string here caused flags to be created with a
-  // garbage assignment key (e.g. "Migrated from Optimizely. Key: flag_key").
-  // Omitting it lets Mixpanel default to distinct_id as the assignment key.
+  // NOTE on `context`: in Mixpanel this maps to the Variant Assignment Key.
+  // We send 'user' (consistent with the GrowthBook/LaunchDarkly tools). An earlier
+  // version sent a free-text migration note here, which created flags with a
+  // garbage assignment key — do NOT do that. If 'user' is not a valid assignment
+  // key in your project (Mixpanel defaults to distinct_id), omit this field so
+  // Mixpanel applies its default. Verify against one created flag before bulk import.
   return{name:flag.name??flag.key,key:flag.key,description:flag.description??null,tags:Array.isArray(flag.tags)?flag.tags.map(String):[],context:'user',status,serving_method:servingMethod,experiment_id:experimentId??null,ruleset:buildRuleset(flag,fullRuleset,cfg.optEnv,flagVariations)};
 }
 
