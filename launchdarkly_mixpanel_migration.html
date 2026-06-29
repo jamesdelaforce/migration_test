@@ -269,6 +269,15 @@
   .dry-run-label:hover { background: var(--gray-02); }
   input[type=checkbox] { accent-color: var(--purple-06); }
 
+  /* ── Risk badges ── */
+  .risk-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
+    border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+    white-space: nowrap; margin: 1px; }
+  .risk-high   { background: var(--lava-01);    color: var(--lava-07);    border: 1px solid #FFBFB1; }
+  .risk-medium { background: var(--mustard-01); color: var(--mustard-07); border: 1px solid #FCE0A5; }
+  .risk-info   { background: var(--pool-01);    color: var(--pool-09);    border: 1px solid #BEE1FA; }
+  .risk-cell   { display: flex; flex-wrap: wrap; gap: 2px; max-width: 200px; }
+
   /* ── OpenFeature path highlight ── */
   .of-banner {
     display: flex; align-items: flex-start; gap: 14px;
@@ -315,7 +324,14 @@
   <nav class="sidebar">
     <div class="sidebar-logo">
       <svg class="sidebar-logo-wordmark" viewBox="0 0 400 95" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0 73.4531H23.9775V70.905H22.1769C18.6724 70.905 17.8284 69.9485 17.8284 66.452V34.8384C20.2719 30.6988 23.5595 28.0462 27.6991 28.0462C32.8997 28.0462 36.0827 31.8643 36.0827 39.0825V66.46C36.0827 69.9646 35.2307 70.9131 31.8386 70.9131H29.9256V73.4611H53.3725V70.9131H51.6765C48.1719 70.9131 47.3279 69.9565 47.3279 66.46V37.9089C47.3279 36.9524 47.3279 35.9959 47.2234 35.0474C49.5545 30.8033 53.0591 28.0462 57.1986 28.0462C62.3993 28.0462 65.5823 31.8643 65.5823 39.0825V66.46C65.5823 69.9646 64.7303 70.9131 61.3382 70.9131H59.4252V73.4611H82.8721V70.9131H81.2806C77.6715 70.9131 76.8275 69.9565 76.8275 66.46V37.9089C76.8275 27.1942 70.7829 21.2541 61.9732 21.2541C55.3981 21.2541 49.667 24.8632 46.5884 32.0733C44.7879 25.0722 39.4828 21.2541 32.4737 21.2541C26.212 21.2541 20.8024 24.6461 17.8284 31.4383V22.5241H0V25.0722H2.12204C5.73112 25.0722 6.57511 26.0287 6.57511 29.5252V66.452C6.57511 69.9565 5.72308 70.905 2.12204 70.905H0V73.4531ZM96.9789 14.0359C100.797 14.0359 103.98 10.8529 103.98 7.03482C103.98 3.21675 100.797 0.0336914 96.9789 0.0336914C93.1608 0.0336914 89.9777 3.21675 89.9777 7.03482C89.9777 10.8529 93.1608 14.0359 96.9789 14.0359ZM85.0987 73.4531H108.65V70.905H107.059C103.554 70.905 102.71 69.9485 102.71 66.452V22.5241H84.8816V25.0722H87.0037C90.6127 25.0722 91.4567 26.0287 91.4567 29.5252V66.452C91.4567 69.9565 90.6047 70.905 87.0037 70.905H85.0906V73.4531H85.0987ZM125.843 43.5355H132.636C130.94 42.4745 130.305 40.9875 129.453 38.2304L126.904 28.7857C125.739 24.5417 124.782 22.5241 120.112 22.5241H110.354V25.0722H111.737C114.598 25.0722 114.92 26.1332 115.772 29.3162L117.998 37.5954C119.164 41.6305 120.972 43.5355 125.851 43.5355H125.843ZM141.55 43.5355H148.342C153.221 43.5355 154.917 41.6225 156.091 37.5954L158.317 29.3162C159.169 26.1332 159.587 25.0722 162.352 25.0722H163.735V22.5241H154.081C149.306 22.5241 148.35 24.4372 147.289 28.7857L144.741 38.2304C143.889 41.092 143.246 42.4745 141.55 43.5355ZM132.636 52.4497H141.55V43.5355H132.636V52.4497ZM110.354 73.4611H120.112C124.782 73.4611 125.739 71.4436 126.904 67.1995L129.453 57.7548C130.305 54.9978 130.94 53.5107 132.636 52.4497H125.843C120.964 52.4497 119.156 54.3628 117.99 58.3898L115.764 66.669C114.912 69.852 114.598 70.9131 111.729 70.9131H110.346V73.4611H110.354ZM154.065 73.4611H163.719V70.9131H162.336C159.579 70.9131 159.153 69.852 158.301 66.669L156.074 58.3898C154.909 54.3547 153.213 52.4497 148.326 52.4497H141.55C143.246 53.5107 143.865 54.8933 144.717 57.7548L147.265 67.1995C148.326 71.5481 149.282 73.4611 154.057 73.4611H154.065ZM165.101 94.6815H189.714V92.1335H187.166C183.774 92.1335 182.922 91.1769 182.922 87.6804V67.4165C186 71.9821 191.201 74.7392 197.35 74.7392C208.917 74.7392 218.144 64.555 218.144 46.9437C218.144 31.0283 209.447 21.2702 198.194 21.2702C191.619 21.2702 186.097 25.0882 182.913 31.8804V22.5402H165.085V25.0882H167.207C170.712 25.0882 171.66 26.0448 171.66 29.5413V87.6724C171.66 91.1769 170.704 92.1254 167.207 92.1254H165.085V94.6735L165.101 94.6815ZM194.175 27.8372C201.071 27.8372 206.698 34.3079 206.698 47.1446C206.698 61.1469 201.497 68.791 194.392 68.791C189.826 68.791 185.799 66.3475 182.93 62.1034V35.7869C185.687 30.5863 189.617 27.8292 194.175 27.8292V27.8372ZM234.92 74.5221C241.816 74.5221 247.33 71.2346 251.47 63.8074V64.973C251.47 71.3391 255.505 74.0961 262.185 74.0961C264.202 74.0961 266.75 73.8871 268.446 73.3566V70.7041C267.594 70.9131 266.959 71.0256 266.324 71.0256C263.672 71.0256 262.82 69.4341 262.82 66.886V39.7175C262.82 27.1942 255.818 21.2541 244.043 21.2541C236.19 21.2541 228.553 24.8632 223.674 28.6812L225.37 31.6553C230.466 28.1507 235.45 26.1412 240.86 26.1412C247.861 26.1412 251.47 29.9593 251.47 38.8735V41.2045L238.416 46.3006C226.536 51.1797 222.179 55.7453 222.179 62.6419C222.179 69.5386 227.058 74.5221 234.912 74.5221H234.92ZM233.328 59.8768C233.328 54.5717 236.407 50.7537 242.668 47.9966L251.478 44.1786V60.7289C248.19 65.2945 244.372 67.947 240.233 67.947C236.093 67.947 233.336 65.0855 233.336 59.8849L233.328 59.8768ZM270.568 73.4611H294.763V70.9131H292.745C289.241 70.9131 288.397 69.9565 288.397 66.46V34.9429C290.84 30.6988 294.441 28.0462 298.685 28.0462C304.199 28.0462 307.704 31.8643 307.704 39.0825V66.46C307.704 69.9646 306.852 70.9131 303.46 70.9131H301.442V73.4611H325.524V70.9131H323.402C319.793 70.9131 318.949 69.9565 318.949 66.46V37.9089C318.949 27.1942 312.583 21.2541 303.564 21.2541C296.989 21.2541 291.467 24.6461 288.389 31.4383V22.5241H270.56V25.0722H272.682C276.291 25.0722 277.135 26.0287 277.135 29.5252V66.452C277.135 69.9565 276.283 70.905 272.682 70.905H270.56V73.4531L270.568 73.4611ZM353.111 74.7311C360.112 74.7311 366.695 71.5481 371.47 67.73L369.878 65.399C365.634 68.4775 360.859 69.8521 356.406 69.8521C345.587 69.8521 339.221 62.2159 339.221 47.3616V45.4486H372.748C372.539 31.1248 363.729 21.3666 350.892 21.3666C338.056 21.3666 327.759 32.9334 327.759 48.2137C327.759 64.981 337.308 74.7392 353.119 74.7392L353.111 74.7311ZM350.989 24.0111C357.355 24.0111 361.277 30.9078 361.92 42.579H339.43C340.387 30.8033 344.84 24.0111 350.997 24.0111H350.989ZM375.071 73.4531H399.683V70.905H397.24C393.735 70.905 392.891 69.9485 392.891 66.452V1.3037H375.063V3.85176H377.185C380.689 3.85176 381.638 4.80828 381.638 8.30483V66.452C381.638 69.9565 380.681 70.905 377.185 70.905H375.063V73.4531H375.071Z" fill="#7856FF"/>
+        <path d="M0 73.4531H23.9775V70.905H22.1769C18.6724 70.905 17.8284 69.9485 17.8284 66.452V34.8384C20.2719 30.6988 23.5595 28.0462 27.6991 28.0462C32.8997 28.0462 36.0827 31.8643 36.0827 39.0825V66.46C36.0827 69.9646 35.2307 70.9131 31.8386 70.9131H29.9256V73.4611H53.3725V70.9131H51.6765C48.1719 70.9131 47.3279 69.9565 47.3279 66.46V37.9089C47.3279 36.9524 47.3279 35.9959 47.2234 35.0474C49.5545 30.8033 53.0591 28.0462 57.1986 28.0462C62.3993 28.0462 65.5823 31.8643 65.5823 39.0825V66.46C65.5823 69.9646 64.7303 70.9131 61.3382 70.9131H59.4252V73.4611H82.8721V70.9131H81.2806C77.6715 70.9131 76.8275 69.9565 76.8275 66.46V37.9089C76.8275 27.1942 70.7829 21.2541 61.9732 21.2541C55.3981 21.2541 49.667 24.8632 46.5884 32.0733C44.7879 25.0722 39.4828 21.2541 32.4737 21.2541C26.212 21.2541 20.8024 24.6461 17.8284 31.4383V22.5241H0V25.0722H2.12204C5.73112 25.0722 6.57511 26.0287 6.57511 29.5252V66.452C6.57511 69.9565 5.72308 70.905 2.12204 70.905H0V73.4531Z" fill="#7856FF"/>
+        <path d="M96.9789 14.0359C100.797 14.0359 103.98 10.8529 103.98 7.03482C103.98 3.21675 100.797 0.0336914 96.9789 0.0336914C93.1608 0.0336914 89.9777 3.21675 89.9777 7.03482C89.9777 10.8529 93.1608 14.0359 96.9789 14.0359ZM85.0987 73.4531H108.65V70.905H107.059C103.554 70.905 102.71 69.9485 102.71 66.452V22.5241H84.8816V25.0722H87.0037C90.6127 25.0722 91.4567 26.0287 91.4567 29.5252V66.452C91.4567 69.9565 90.6047 70.905 87.0037 70.905H85.0906V73.4531H85.0987Z" fill="#7856FF"/>
+        <path d="M125.843 43.5355H132.636C130.94 42.4745 130.305 40.9875 129.453 38.2304L126.904 28.7857C125.739 24.5417 124.782 22.5241 120.112 22.5241H110.354V25.0722H111.737C114.598 25.0722 114.92 26.1332 115.772 29.3162L117.998 37.5954C119.164 41.6305 120.972 43.5355 125.851 43.5355H125.843ZM141.55 43.5355H148.342C153.221 43.5355 154.917 41.6225 156.091 37.5954L158.317 29.3162C159.169 26.1332 159.587 25.0722 162.352 25.0722H163.735V22.5241H154.081C149.306 22.5241 148.35 24.4372 147.289 28.7857L144.741 38.2304C143.889 41.092 143.246 42.4745 141.55 43.5355ZM132.636 52.4497H141.55V43.5355H132.636V52.4497ZM110.354 73.4611H120.112C124.782 73.4611 125.739 71.4436 126.904 67.1995L129.453 57.7548C130.305 54.9978 130.94 53.5107 132.636 52.4497H125.843C120.964 52.4497 119.156 54.3628 117.99 58.3898L115.764 66.669C114.912 69.852 114.598 70.9131 111.729 70.9131H110.346V73.4611H110.354ZM154.065 73.4611H163.719V70.9131H162.336C159.579 70.9131 159.153 69.852 158.301 66.669L156.074 58.3898C154.909 54.3547 153.213 52.4497 148.326 52.4497H141.55C143.246 53.5107 143.865 54.8933 144.717 57.7548L147.265 67.1995C148.326 71.5481 149.282 73.4611 154.057 73.4611H154.065Z" fill="#7856FF"/>
+        <path d="M165.101 94.6815H189.714V92.1335H187.166C183.774 92.1335 182.922 91.1769 182.922 87.6804V67.4165C186 71.9821 191.201 74.7392 197.35 74.7392C208.917 74.7392 218.144 64.555 218.144 46.9437C218.144 31.0283 209.447 21.2702 198.194 21.2702C191.619 21.2702 186.097 25.0882 182.913 31.8804V22.5402H165.085V25.0882H167.207C170.712 25.0882 171.66 26.0448 171.66 29.5413V87.6724C171.66 91.1769 170.704 92.1254 167.207 92.1254H165.085V94.6735L165.101 94.6815ZM194.175 27.8372C201.071 27.8372 206.698 34.3079 206.698 47.1446C206.698 61.1469 201.497 68.791 194.392 68.791C189.826 68.791 185.799 66.3475 182.93 62.1034V35.7869C185.687 30.5863 189.617 27.8292 194.175 27.8292V27.8372Z" fill="#7856FF"/>
+        <path d="M234.92 74.5221C241.816 74.5221 247.33 71.2346 251.47 63.8074V64.973C251.47 71.3391 255.505 74.0961 262.185 74.0961C264.202 74.0961 266.75 73.8871 268.446 73.3566V70.7041C267.594 70.9131 266.959 71.0256 266.324 71.0256C263.672 71.0256 262.82 69.4341 262.82 66.886V39.7175C262.82 27.1942 255.818 21.2541 244.043 21.2541C236.19 21.2541 228.553 24.8632 223.674 28.6812L225.37 31.6553C230.466 28.1507 235.45 26.1412 240.86 26.1412C247.861 26.1412 251.47 29.9593 251.47 38.8735V41.2045L238.416 46.3006C226.536 51.1797 222.179 55.7453 222.179 62.6419C222.179 69.5386 227.058 74.5221 234.912 74.5221H234.92ZM233.328 59.8768C233.328 54.5717 236.407 50.7537 242.668 47.9966L251.478 44.1786V60.7289C248.19 65.2945 244.372 67.947 240.233 67.947C236.093 67.947 233.336 65.0855 233.336 59.8849L233.328 59.8768Z" fill="#7856FF"/>
+        <path d="M270.568 73.4611H294.763V70.9131H292.745C289.241 70.9131 288.397 69.9565 288.397 66.46V34.9429C290.84 30.6988 294.441 28.0462 298.685 28.0462C304.199 28.0462 307.704 31.8643 307.704 39.0825V66.46C307.704 69.9646 306.852 70.9131 303.46 70.9131H301.442V73.4611H325.524V70.9131H323.402C319.793 70.9131 318.949 69.9565 318.949 66.46V37.9089C318.949 27.1942 312.583 21.2541 303.564 21.2541C296.989 21.2541 291.467 24.6461 288.389 31.4383V22.5241H270.56V25.0722H272.682C276.291 25.0722 277.135 26.0287 277.135 29.5252V66.452C277.135 69.9565 276.283 70.905 272.682 70.905H270.56V73.4531L270.568 73.4611Z" fill="#7856FF"/>
+        <path d="M353.111 74.7311C360.112 74.7311 366.695 71.5481 371.47 67.73L369.878 65.399C365.634 68.4775 360.859 69.8521 356.406 69.8521C345.587 69.8521 339.221 62.2159 339.221 47.3616V45.4486H372.748C372.539 31.1248 363.729 21.3666 350.892 21.3666C338.056 21.3666 327.759 32.9334 327.759 48.2137C327.759 64.981 337.308 74.7392 353.119 74.7392L353.111 74.7311ZM350.989 24.0111C357.355 24.0111 361.277 30.9078 361.92 42.579H339.43C340.387 30.8033 344.84 24.0111 350.997 24.0111H350.989Z" fill="#7856FF"/>
+        <path d="M375.071 73.4531H399.683V70.905H397.24C393.735 70.905 392.891 69.9485 392.891 66.452V1.3037H375.063V3.85176H377.185C380.689 3.85176 381.638 4.80828 381.638 8.30483V66.452C381.638 69.9565 380.681 70.905 377.185 70.905H375.063V73.4531H375.071Z" fill="#7856FF"/>
       </svg>
       <div class="sidebar-logo-sub">
         LaunchDarkly <span>→</span> Mixpanel
@@ -491,17 +507,21 @@
               <option value="in">India — in.mixpanel.com</option>
             </select>
           </div>
-        </div>
+          </div>
         <div class="auth-preview" id="auth-preview" style="font-size:11px;font-family:var(--mono);color:var(--text-muted);background:var(--gray-02);padding:7px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-top:12px">
           Authorization header preview will appear once both credential fields are filled.
         </div>
       </div>
 
-      <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
+      <div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap">
         <button class="btn btn-primary" id="btn-fetch" onclick="fetchFlags()">Fetch flags from LaunchDarkly</button>
-        <label class="dry-run-label">
-          <input type="checkbox" id="dry-run" checked/> Dry run
+        <label class="dry-run-label" style="gap:8px">
+          <span style="white-space:nowrap">Max requests / 10 s</span>
+          <input type="number" id="rate-limit" value="25" min="1" max="200" step="5"
+            style="width:56px;font-size:13px;font-family:var(--font);padding:3px 7px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);outline:none;text-align:center"
+            oninput="updateRateHint()"/>
         </label>
+        <span id="rate-hint" style="font-size:12px;color:var(--text-muted)">Lower if you get rate limited</span>
       </div>
       <div id="config-error" style="display:none;margin-top:12px"></div>
     </div>
@@ -533,6 +553,12 @@
           <option value="multivariate">Multivariate</option>
           <option value="experiment">Experiment</option>
         </select>
+        <select id="f-risk" onchange="renderTable()">
+          <option value="">All risk levels</option>
+          <option value="high">⚠ High risk</option>
+          <option value="medium">~ Medium risk</option>
+          <option value="clean">✓ Clean</option>
+        </select>
         <span class="badge" id="count-badge">0 flags</span>
         <button class="btn btn-sm" onclick="goTo('code')">Code samples →</button>
         <button class="btn btn-sm btn-purple" onclick="goTo('import')">Import selected →</button>
@@ -547,7 +573,7 @@
           <thead><tr>
             <th style="width:32px"></th>
             <th>Key</th><th>Name</th><th>Status</th><th>Type</th>
-            <th>Variations</th><th>Tags</th><th>Mixpanel SDK</th><th>Eval mode</th>
+            <th>Variations</th><th>Migration risks</th><th>Tags</th><th>Mixpanel SDK</th><th>Eval mode</th>
           </tr></thead>
           <tbody id="flag-tbody"></tbody>
         </table>
@@ -616,6 +642,7 @@
         <div class="stat-card"><div class="stat-n" id="s-exp" style="color:var(--purple-06)">0</div><div class="stat-l">experiments created</div></div>
         <div class="stat-card"><div class="stat-n" id="s-flag" style="color:var(--grass-06)">0</div><div class="stat-l">flags created</div></div>
         <div class="stat-card"><div class="stat-n" id="s-fail" style="color:var(--lava-07)">0</div><div class="stat-l">failed</div></div>
+        <div class="stat-card"><div class="stat-n" id="s-skip" style="color:var(--text-muted)">0</div><div class="stat-l">skipped</div></div>
       </div>
 
       <div class="progress-bar-wrap" style="margin-bottom:12px">
@@ -624,9 +651,14 @@
 
       <div class="log" id="import-log">Ready — press Run import to begin.</div>
 
-      <div style="display:flex;gap:8px;margin-top:16px">
+      <div style="display:flex;gap:8px;margin-top:16px;align-items:center;flex-wrap:wrap">
         <button class="btn" onclick="goTo('select')">← Back</button>
-        <button class="btn btn-primary" id="btn-run" onclick="runImport()">Run import</button>
+        <button class="btn btn-primary" id="btn-preview" onclick="runImport(true)">Preview</button>
+        <button class="btn btn-primary" id="btn-run" onclick="runImport(false)" style="background:var(--grass-06);border-color:var(--grass-06)">Import</button>
+        <button class="btn" id="btn-abort" onclick="abortImport()" style="display:none;background:var(--lava-07);color:white;border-color:var(--lava-07)">Abort</button>
+        <button class="btn" id="btn-retry" onclick="retryFailed()" style="display:none">Retry failed</button>
+        <button class="btn" id="btn-copy-log" onclick="copyLog()" style="display:none">Copy log</button>
+        <span style="font-size:12px;color:var(--text-muted)" id="import-mode-hint">Preview first to check payloads, then Import to create flags in Mixpanel.</span>
       </div>
     </div>
 
@@ -636,6 +668,8 @@
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
 let allFlags = [];
+let importAborted = false;
+let failedFlags = []; // for retry
 let selectedKeys = new Set();
 let flagSdks = {};
 let flagEvalModes = {};
@@ -918,7 +952,11 @@ async function doFetchFlags(cfg) {
     url.searchParams.set('limit', limit);
     url.searchParams.set('offset', offset);
     url.searchParams.set('env', cfg.ldEnv);
-    url.searchParams.set('summary', 'true');
+    // summary=0 is REQUIRED: with the default summary representation LaunchDarkly
+    // OMITS each environment's rules, fallthrough, targets and prerequisites, which
+    // are exactly the fields buildMpRollout()/ldRisks() need. summary=0 + env returns
+    // the full per-environment targeting config.
+    url.searchParams.set('summary', '0');
     const res = await fetch(url, {
       headers: {
         Authorization: cfg.ldToken,
@@ -956,6 +994,97 @@ function ldVariationCount(flag) {
   return Array.isArray(flag.variations) ? flag.variations.length : 2;
 }
 
+/**
+ * Resolve the control variation index using the correct priority order:
+ *   1. experiments.baselineIdx  — authoritative for experiment flags
+ *   2. defaults.onVariation     — what's served in normal operation
+ *   3. 0                        — safe fallback
+ * NOTE: we deliberately do NOT use offVariation — that is the "kill switch"
+ * state, not the baseline/control.
+ */
+function ldControlIdx(flag) {
+  if (flag.experiments?.baselineIdx !== undefined) return flag.experiments.baselineIdx;
+  if (flag.defaults?.onVariation    !== undefined) return flag.defaults.onVariation;
+  return 0;
+}
+
+/**
+ * Analyse a flag for migration risks. Returns an array of risk objects:
+ *   { level: 'high'|'medium'|'info', label, detail }
+ */
+function ldRisks(flag, env) {
+  const risks = [];
+  const envData = flag.environments?.[env] ?? {};
+  const rules   = envData.rules ?? [];
+  const summary = envData._summary ?? {};
+
+  // Count total rules across all variation summaries
+  const totalRules = Object.values(summary.variations ?? {})
+    .reduce((s, v) => s + (v.rules ?? 0), 0);
+
+  // Prerequisite flags
+  const prereqCount = summary.prerequisites ?? (envData.prerequisites ?? []).length;
+  if (prereqCount > 0) {
+    risks.push({
+      level: 'medium', label: `${prereqCount} prereq${prereqCount>1?'s':''}`,
+      detail: `Has ${prereqCount} prerequisite flag(s) — dependency chain will be dropped on import.`
+    });
+  }
+
+  // Scan rules for non-user context kinds and segment matches
+  const nonUserContexts = new Set();
+  let hasSegmentMatch = false;
+  let hasTranslatableRules = false;
+
+  for (const rule of rules) {
+    for (const clause of (rule.clauses ?? [])) {
+      if (clause.op === 'segmentMatch') {
+        hasSegmentMatch = true;
+      } else if (clause.contextKind && clause.contextKind !== 'user') {
+        nonUserContexts.add(clause.contextKind);
+      } else {
+        hasTranslatableRules = true;
+      }
+    }
+  }
+
+  if (nonUserContexts.size > 0) {
+    risks.push({
+      level: 'high', label: 'non-user context',
+      detail: `Rules use context kind(s): ${[...nonUserContexts].join(', ')}. Assignment key must be updated manually in Mixpanel UI after import.`
+    });
+  }
+
+  if (hasSegmentMatch) {
+    risks.push({
+      level: 'high', label: 'segment rules',
+      detail: 'segmentMatch rules cannot be auto-translated — recreate as Mixpanel cohorts manually.'
+    });
+  }
+
+  if (hasTranslatableRules) {
+    risks.push({
+      level: 'info', label: 'rules translated',
+      detail: 'Attribute-based targeting rules translated to JsonLogic runtime_evaluation_rule.'
+    });
+  }
+
+  // Multivariate value loss
+  if (flag.kind !== 'boolean' && (flag.variations ?? []).length > 0) {
+    const hasNonStringValues = (flag.variations ?? []).some(vr =>
+      typeof vr.value === 'object' || typeof vr.value === 'number'
+    );
+    if (hasNonStringValues) {
+      risks.push({
+        level: 'medium', label: 'value type lost',
+        detail: `Variation values (${flag.kind}) are preserved in descriptions only — Mixpanel flag variants use string keys.`
+      });
+    }
+  }
+
+  return risks;
+}
+
 function statusPill(flag, env) {
   const s = ldFlagStatus(flag, env);
   const m = { active: 'pill-green', inactive: 'pill-neutral', archived: 'pill-red' };
@@ -968,13 +1097,30 @@ function typePill(flag) {
   return `<span class="pill ${m[t]}">${t}</span>`;
 }
 
+function riskBadges(flag, env) {
+  const risks = ldRisks(flag, env);
+  if (!risks.length) return '<span style="color:var(--text-muted);font-size:11px">—</span>';
+  return `<div class="risk-cell">${risks.map(r =>
+    `<span class="risk-badge risk-${r.level}" title="${r.detail}">${r.label}</span>`
+  ).join('')}</div>`;
+}
+
 // ── Table render ──────────────────────────────────────────────────────────────
 function renderTable() {
   const cfg = getCfg();
-  const q = v('search').toLowerCase(), sf = v('f-status'), tf = v('f-type');
+  const q = v('search').toLowerCase(), sf = v('f-status'), tf = v('f-type'), rf = v('f-risk') || '';
   const vis = allFlags.filter(f => {
     const mq = !q || f.key.toLowerCase().includes(q) || (f.name||'').toLowerCase().includes(q);
-    return mq && (!sf || ldFlagStatus(f, cfg.ldEnv) === sf) && (!tf || ldFlagType(f) === tf);
+    if (!mq) return false;
+    if (sf && ldFlagStatus(f, cfg.ldEnv) !== sf) return false;
+    if (tf && ldFlagType(f) !== tf) return false;
+    if (rf) {
+      const risks = ldRisks(f, cfg.ldEnv);
+      if (rf === 'high'   && !risks.some(r => r.level === 'high'))   return false;
+      if (rf === 'medium' && !risks.some(r => r.level === 'medium')) return false;
+      if (rf === 'clean'  && risks.length > 0)                       return false;
+    }
+    return true;
   });
   const tbody = el('flag-tbody');
   tbody.innerHTML = vis.map(f => {
@@ -993,6 +1139,7 @@ function renderTable() {
       <td>${statusPill(f, cfg.ldEnv)}</td>
       <td>${typePill(f)}</td>
       <td style="color:var(--text-secondary)">${vc}</td>
+      <td>${riskBadges(f, cfg.ldEnv)}</td>
       <td style="color:var(--text-secondary);font-size:12px">${tags}</td>
       <td><select class="sdk-select" data-key="${f.key}" onchange="setSdk('${f.key}',this.value)">${sdkOpts}</select></td>
       <td><select class="sdk-select" id="mode-sel-${f.key}" data-key="${f.key}" onchange="setEvalModeFromTable('${f.key}',this.value)">${modeOpts}</select></td>
@@ -1141,17 +1288,26 @@ function copyAllSnippets(flagKey) {
 // Map LaunchDarkly variations to Mixpanel variant names
 function buildLdVariantNames(flag) {
   const variations = flag.variations || [];
-  if (!variations.length) return [{ mpKey: 'treatment', name: 'treatment' }];
-  // Boolean flags: first variation = true/on = treatment, second = false/off = control
-  if (ldFlagType(flag) === 'boolean' && variations.length === 2) {
-    return [{ mpKey: 'treatment', name: variations[0].value?.toString() || 'on', ldIndex: 0 }];
-  }
-  // Multivariate: map to treatment_a, treatment_b, … (skip index 0 as control)
+  if (!variations.length) return [{ mpKey: 'treatment', name: 'treatment', ldIndex: 0 }];
+
+  const controlIdx = ldControlIdx(flag);
+
+  // Build treatment list: all variations except the control
   const letters = 'abcdefghijklmnopqrstuvwxyz';
-  return variations.slice(1).map((v, i) => ({
-    mpKey: variations.length === 2 ? 'treatment' : `treatment_${letters[i]||i}`,
-    name: v.name || v.value?.toString() || `variation_${i+1}`,
-    ldIndex: i + 1
+  const treatments = variations
+    .map((vr, idx) => ({ ...vr, idx }))
+    .filter(vr => vr.idx !== controlIdx);
+
+  if (!treatments.length) {
+    // Edge case: only one variation total
+    return [{ mpKey: 'treatment', name: variations[0]?.name || 'treatment', ldIndex: 0 }];
+  }
+
+  return treatments.map((vr, i) => ({
+    mpKey: treatments.length === 1 ? 'treatment' : `treatment_${letters[i] ?? i}`,
+    name: vr.name || String(vr.value ?? `variation_${vr.idx}`),
+    ldIndex: vr.idx,
+    value: vr.value,
   }));
 }
 
@@ -1223,66 +1379,310 @@ function generateSnippets(sdk, mode, flagKey, variants, token) {
 }
 
 // ── Import to Mixpanel ────────────────────────────────────────────────────────
-async function runImport() {
+async function runImport(dryRun=false) {
   const cfg = getCfg();
-  const btn = el('btn-run'); btn.disabled = true;
+  importAborted = false;
+  if (!dryRun) failedFlags = [];
+  el('btn-run').disabled = true;
+  el('btn-preview').disabled = true;
+  el('btn-abort').style.display = dryRun ? 'none' : '';
+  el('btn-abort').disabled = false;
+  el('btn-abort').textContent = 'Abort';
+  el('btn-retry').style.display = 'none';
+  el('btn-copy-log').style.display = 'none';
+  el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.key));
-  let flagOk = 0, fail = 0;
+  let flagOk = 0, skip = 0, fail = 0;
   el('s-total').textContent = selected.length;
+  el('s-flag').textContent = '0'; el('s-fail').textContent = '0'; el('s-skip').textContent = '0';
   el('import-log').innerHTML = '';
   el('progress-bar').style.width = '0%';
   const mpDomain = cfg.mpRegion === 'us' ? 'mixpanel.com' : `${cfg.mpRegion}.mixpanel.com`;
 
+  log('ℹ Reminder: translated clauses become Mixpanel runtime rules. Mixpanel LOCAL evaluation only supports a single exact-match condition — multi-condition rules always evaluate to TRUE there. Use REMOTE evaluation for any flag that relies on targeting.', 'warn');
+
+  // ── Pre-flight key validation ────────────────────────────────────────────
+  const keyErrors = [];
+  for (const flag of selected) {
+    const err = validateFlagKey(flag.key);
+    if (err) keyErrors.push(`${flag.key}: ${err}`);
+  }
+  if (keyErrors.length) {
+    for (const e of keyErrors) log(`✗ Key validation failed — ${e}`, 'err');
+    log(`Fix the above flag keys in LaunchDarkly before importing.`, 'err');
+    el('btn-run').disabled = false; el('btn-preview').disabled = false;
+    el('btn-abort').style.display = 'none';
+    return;
+  }
+
   for (let i = 0; i < selected.length; i++) {
+    if (importAborted) { log('Import aborted.', 'warn'); break; }
     const flag = selected[i];
-    log(`→ ${flag.key}`, 'info');
+    log(`→ ${flag.key}  (${ldFlagType(flag)}, ${ldVariationCount(flag)} variations)`, 'info');
+
     const flagP = buildMpFlagPayload(flag, cfg);
-    if (cfg.dryRun) {
-      log(`   [DRY RUN] flag: ${flag.key} (${ldFlagType(flag)}, ${ldVariationCount(flag)} variations)`, 'warn');
+    const rolloutMeta = flagP._ldRolloutMeta ?? [];
+    delete flagP._ldRolloutMeta;
+
+    const risks = ldRisks(flag, cfg.ldEnv);
+    for (const r of risks) {
+      log(`   ${r.level === 'high' ? '⚠' : r.level === 'medium' ? '~' : 'ℹ'} ${r.detail}`, r.level === 'high' ? 'err' : 'warn');
+    }
+    for (const { entry, untranslatable, clauses } of rolloutMeta) {
+      if (clauses.length > 0 && entry.runtime_evaluation_rule) {
+        log(`   ✓ Rule translated → ${JSON.stringify(entry.runtime_evaluation_rule)}`, 'ok');
+      }
+      for (const uc of untranslatable) {
+        log(`   ~ Rule dropped (${uc.op}): ${uc.contextKind !== 'user' ? uc.contextKind + '.' : ''}${uc.attribute || 'segment'} — recreate manually`, 'warn');
+      }
+    }
+
+    if (dryRun) {
+      const rs = flagP.ruleset;
+      log(`   [PREVIEW] ${rs.variants.length} variant(s), ${rs.rollout.length} rollout rule(s)${risks.length ? `, ${risks.filter(r=>r.level==='high').length} high-risk warning(s)` : ''}`, 'warn');
       flagOk++;
     } else {
-      const res = await fetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
-        method: 'POST', headers: authHeaders(), body: JSON.stringify(flagP)
-      });
-      const body = await res.json().catch(() => ({}));
-      if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
-      else if (res.status === 409) { log(`   ⏭ Skipped (already exists)`, 'warn'); flagOk++; }
-      else { log(`   ✗ Failed: ${body?.error ?? body?.message ?? 'HTTP ' + res.status}`, 'err'); fail++; }
-      await sleep(120);
+      try {
+        const res = await mpFetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
+          method: 'POST', headers: authHeaders(), body: JSON.stringify(flagP)
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
+        else if (res.status === 409) { log(`   ⏭ Skipped (already exists)`, 'warn'); skip++; }
+        else {
+          const detail = typeof body?.error === 'object' ? JSON.stringify(body.error) : (body?.error ?? body?.message ?? 'HTTP ' + res.status);
+          log(`   ✗ Failed: ${detail}`, 'err'); fail++;
+          failedFlags.push(flag);
+        }
+      } catch(err) {
+        log(`   ✗ Network error: ${err.message}`, 'err'); fail++;
+        failedFlags.push(flag);
+      }
+      await sleep(cfg.delayMs);
     }
-    el('s-flag').textContent = flagOk; el('s-fail').textContent = fail;
+    el('s-flag').textContent = flagOk; el('s-fail').textContent = fail; el('s-skip').textContent = skip;
     el('progress-bar').style.width = `${Math.round(((i+1)/selected.length)*100)}%`;
   }
 
-  log(`Done — ${flagOk} flags${fail ? `, ${fail} failed` : ''}`, fail ? 'err' : 'ok');
-  btn.disabled = false;
+  const summary = `Done — ${flagOk} created, ${skip} skipped${fail ? `, ${fail} failed` : ''}${importAborted ? ' (aborted)' : ''}`;
+  log(summary, fail ? 'err' : 'ok');
+  el('btn-run').disabled = false; el('btn-preview').disabled = false;
+  el('btn-abort').style.display = 'none';
+  el('btn-copy-log').style.display = '';
+  if (failedFlags.length) el('btn-retry').style.display = '';
+  el('import-mode-hint').textContent = dryRun ? 'Preview complete — click Import to create flags.' : (fail ? `${fail} flag(s) failed — click Retry failed or check the log.` : 'Import complete.');
+}
+
+// ── LD clause → JsonLogic ─────────────────────────────────────────────────────
+// Translates a single LD clause into a JsonLogic rule object.
+// Returns null for untranslatable clauses (segmentMatch, unknown ops).
+function ldClauseToJsonLogic(clause) {
+  const attr  = clause.attribute;
+  const vals  = clause.values ?? [];
+  const first = vals[0];
+  let logic = null;
+
+  switch (clause.op) {
+    case 'in':
+      // LD "in" = value is one of the list
+      logic = { in: [{ var: attr }, vals] };
+      break;
+    case 'endsWith':
+      logic = vals.length === 1 ? { endsWith: [{ var: attr }, first] } : { or: vals.map(v => ({ endsWith: [{ var: attr }, v] })) };
+      break;
+    case 'startsWith':
+      logic = vals.length === 1 ? { startsWith: [{ var: attr }, first] } : { or: vals.map(v => ({ startsWith: [{ var: attr }, v] })) };
+      break;
+    case 'contains':
+      // JsonLogic: {"in": [needle, haystack]}
+      logic = vals.length === 1 ? { in: [first, { var: attr }] } : { or: vals.map(v => ({ in: [v, { var: attr }] })) };
+      break;
+    case 'matches':
+      // regex — not standard JsonLogic but Mixpanel may support it
+      logic = vals.length === 1 ? { regex: [{ var: attr }, first] } : { or: vals.map(v => ({ regex: [{ var: attr }, v] })) };
+      break;
+    case 'lessThan':           logic = { '<':  [{ var: attr }, first] }; break;
+    case 'lessThanOrEqual':    logic = { '<=': [{ var: attr }, first] }; break;
+    case 'greaterThan':        logic = { '>':  [{ var: attr }, first] }; break;
+    case 'greaterThanOrEqual': logic = { '>=': [{ var: attr }, first] }; break;
+    case 'before':             logic = { '<':  [{ var: attr }, first] }; break;
+    case 'after':              logic = { '>':  [{ var: attr }, first] }; break;
+    case 'semVerEqual':        logic = { '==': [{ var: attr }, first] }; break;
+    case 'semVerLessThan':     logic = { '<':  [{ var: attr }, first] }; break;
+    case 'semVerGreaterThan':  logic = { '>':  [{ var: attr }, first] }; break;
+    case 'segmentMatch':
+      return null; // Cannot translate — needs Mixpanel cohort
+    default:
+      return null;
+  }
+
+  if (logic && clause.negate) logic = { '!': logic };
+  return logic;
+}
+
+// Translate an array of LD clauses (AND) into a single JsonLogic object.
+// Returns { rule, definition, untranslatable[] }
+function ldClausesToJsonLogic(clauses) {
+  const parts = [];
+  const definition = {};
+  const untranslatable = [];
+
+  for (const clause of clauses) {
+    const logic = ldClauseToJsonLogic(clause);
+    if (logic) {
+      parts.push(logic);
+      if (clause.attribute) definition[clause.attribute] = clause.values?.[0] ?? '';
+    } else {
+      untranslatable.push(clause);
+    }
+  }
+
+  const rule = parts.length === 0  ? null
+             : parts.length === 1  ? parts[0]
+             : { and: parts };
+
+  return { rule, definition: Object.keys(definition).length ? definition : null, untranslatable };
+}
+
+// Build Mixpanel rollout entries from LD rules + fallthrough
+function buildMpRollout(flag, env, variants) {
+  const envData   = flag.environments?.[env] ?? {};
+  const rules     = envData.rules ?? [];
+  const fallthrough = envData.fallthrough ?? {};
+  const controlIdx  = ldControlIdx(flag);
+
+  // Map LD variation index → Mixpanel variant key
+  const ldIdxToMpKey = new Map();
+  ldIdxToMpKey.set(controlIdx, 'control');
+  variants.forEach(vr => ldIdxToMpKey.set(vr.ldIndex, vr.mpKey));
+
+  const rollout = [];
+
+  // ── Targeting rules ────────────────────────────────────────────────────────
+  for (const rule of rules) {
+    const clauses = rule.clauses ?? [];
+    const { rule: jsonLogicRule, definition, untranslatable } = ldClausesToJsonLogic(clauses);
+
+    // Determine which variant this rule serves
+    let variantSplits = {};
+    if (rule.variation !== undefined) {
+      const mpKey = ldIdxToMpKey.get(rule.variation);
+      if (mpKey) variantSplits[mpKey] = 1.0;
+    } else if (rule.rollout?.variations) {
+      // Weighted rollout within a rule
+      const rvs = rule.rollout.variations;
+      const treatmentTotal = rvs.filter(rv => rv.variation !== controlIdx)
+        .reduce((s, rv) => s + (rv.weight ?? 0), 0);
+      let rem = 1.0;
+      rvs.filter(rv => rv.variation !== controlIdx).forEach((rv, i, arr) => {
+        const mk = ldIdxToMpKey.get(rv.variation);
+        if (!mk) return;
+        if (i === arr.length - 1) { variantSplits[mk] = parseFloat(rem.toFixed(6)); }
+        else { const s = parseFloat((rv.weight / treatmentTotal).toFixed(6)); variantSplits[mk] = s; rem -= s; }
+      });
+    }
+
+    if (!Object.keys(variantSplits).length) continue;
+
+    const entry = {
+      name: rule.description || null,
+      cohort_definition: {},
+      runtime_evaluation_definition: definition ?? {},
+      runtime_evaluation_rule: jsonLogicRule ?? null,
+      runtime_event_rule: null,
+      cohort_hash: '711c452bb1e29c9571593d58f7fc17e5', // stable "all users" hash
+      rollout_percentage: 1,
+      variant_override: null,
+      variant_splits: variantSplits,
+    };
+    rollout.push({ entry, untranslatable, clauses });
+  }
+
+  // ── Fallthrough (default rule) ─────────────────────────────────────────────
+  let defaultRolloutPct = 0;
+  let defaultVariantSplits = {};
+
+  if (fallthrough.rollout?.variations) {
+    // Percentage rollout
+    const rvs = fallthrough.rollout.variations;
+    const treatmentTotal = rvs.filter(rv => rv.variation !== controlIdx)
+      .reduce((s, rv) => s + (rv.weight ?? 0), 0);
+    defaultRolloutPct = parseFloat(Math.min(treatmentTotal / 100000, 1).toFixed(6));
+    let rem = 1.0;
+    rvs.filter(rv => rv.variation !== controlIdx).forEach((rv, i, arr) => {
+      const mk = ldIdxToMpKey.get(rv.variation);
+      if (!mk) return;
+      if (i === arr.length - 1) { defaultVariantSplits[mk] = parseFloat(rem.toFixed(6)); }
+      else { const s = parseFloat((rv.weight / treatmentTotal).toFixed(6)); defaultVariantSplits[mk] = s; rem -= s; }
+    });
+  } else if (fallthrough.variation !== undefined) {
+    const mk = ldIdxToMpKey.get(fallthrough.variation);
+    if (mk && mk !== 'control') {
+      defaultRolloutPct = 1;
+      defaultVariantSplits[mk] = 1.0;
+    }
+  }
+
+  // Ensure at least one treatment key in splits
+  if (!Object.keys(defaultVariantSplits).length) {
+    const firstTreatment = variants[0];
+    if (firstTreatment) defaultVariantSplits[firstTreatment.mpKey] = 1.0;
+  }
+
+  rollout.push({
+    entry: {
+      name: null,
+      cohort_definition: {},
+      runtime_evaluation_definition: {},
+      runtime_evaluation_rule: null,
+      runtime_event_rule: null,
+      cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
+      rollout_percentage: defaultRolloutPct,
+      variant_override: null,
+      variant_splits: defaultVariantSplits,
+    },
+    untranslatable: [],
+    clauses: [],
+  });
+
+  return rollout;
 }
 
 function buildMpFlagPayload(flag, cfg) {
   const sdk = flagSdks[flag.key] || 'javascript';
   const servingMethod = SDKS.find(s => s.id === sdk)?.serving || 'client';
+  const controlIdx = ldControlIdx(flag);
+  const controlVar = flag.variations?.[controlIdx];
   const variants = buildLdVariantNames(flag);
-  const variantList = ['control', ...variants.map(v => v.mpKey)];
+  const variantList = ['control', ...variants.map(vr => vr.mpKey)];
   const even = parseFloat((1 / variantList.length).toFixed(6));
+
   const mpVariants = variantList.map((k, i) => ({
-    key: k, value: k, is_control: k === 'control', split: even,
+    key: k, value: k === 'control' ? (controlVar?.value ?? false) : (variants[i-1]?.value ?? k),
+    is_control: k === 'control',
+    split: even,
+    is_sticky: false,
     description: k === 'control'
-      ? `Control — Migrated from LaunchDarkly. Original: ${flag.variations?.[1]?.name || 'off'}`
-      : `Treatment — Migrated from LaunchDarkly. Original: ${variants[i-1]?.name || k}`
+      ? `Control — Migrated from LaunchDarkly. Original: ${controlVar?.name ?? String(controlVar?.value ?? 'control')} (variation index ${controlIdx})`
+      : `Treatment — Migrated from LaunchDarkly. Original: ${variants[i-1]?.name ?? k} (value: ${String(variants[i-1]?.value ?? '')})`
   }));
-  const treatmentKey = variants[0]?.mpKey || 'treatment';
+
+  const rolloutEntries = buildMpRollout(flag, cfg.ldEnv, variants);
+
   return {
     name: flag.name || flag.key,
     key: flag.key,
     description: flag.description || null,
     tags: Array.isArray(flag.tags) ? flag.tags.map(String) : [],
+    context: 'user',
     status: flag.archived ? 'archived' : (flag.environments?.[cfg.ldEnv]?.on ? 'enabled' : 'disabled'),
     serving_method: servingMethod,
     experiment_id: null,
     ruleset: {
       variants: mpVariants,
-      rollout: [{ rollout_percentage: 0, variant_splits: { [treatmentKey]: 1.0 } }]
-    }
+      rollout: rolloutEntries.map(r => r.entry),
+    },
+    _ldRolloutMeta: rolloutEntries, // used by import log, stripped before POST
   };
 }
 
@@ -1352,6 +1752,10 @@ const v = id => el(id)?.value?.trim() || '';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function getCfg() {
+  const rateLimit = Math.max(1, parseInt(v('rate-limit') || '25', 10) || 25);
+  // Each flag costs up to 1-2 Mixpanel API requests. Convert "max req / 10 s"
+  // into a per-flag delay with 20% headroom.
+  const delayMs = Math.ceil((10000 / rateLimit) * 2 * 1.2);
   return {
     ldToken: v('ld-token'),
     ldProject: v('ld-project') || 'default',
@@ -1359,8 +1763,18 @@ function getCfg() {
     mpProject: v('mp-project'),
     mpWorkspace: v('mp-workspace'),
     mpRegion: v('mp-region') || 'us',
-    dryRun: el('dry-run').checked,
+    rateLimit,
+    delayMs,
   };
+}
+
+function updateRateHint() {
+  const rateLimit = Math.max(1, parseInt(v('rate-limit') || '25', 10) || 25);
+  const delayMs = Math.ceil((10000 / rateLimit) * 2 * 1.2);
+  const selected = selectedKeys.size || 0;
+  const estSecs = selected > 0 ? Math.round((selected * delayMs) / 1000) : null;
+  el('rate-hint').textContent = '~' + delayMs + 'ms between flags'
+    + (estSecs !== null ? ' · ~' + estSecs + 's for ' + selected + ' flags' : ' · Lower if you get rate limited');
 }
 function authHeaders() {
   return { Authorization: `Basic ${encodedAuth}`, 'Content-Type': 'application/json', Accept: 'application/json' };
@@ -1381,6 +1795,68 @@ function showErr(elRef, msg) {
   elRef.innerHTML = `<div class="alert alert-error">${msg}</div>`;
   elRef.style.display = '';
 }
+
+// ── Abort ─────────────────────────────────────────────────────────────────────
+function abortImport() {
+  importAborted = true;
+  el('btn-abort').disabled = true;
+  el('btn-abort').textContent = 'Aborting…';
+}
+
+// ── Retry failed ──────────────────────────────────────────────────────────────
+async function retryFailed() {
+  if (!failedFlags.length) return;
+  const toRetry = [...failedFlags];
+  failedFlags = [];
+  el('btn-retry').style.display = 'none';
+  // temporarily add back to selectedKeys and re-run import for just these
+  selectedKeys = new Set(toRetry.map(f => f.key));
+  await runImport(false);
+}
+
+// ── Copy log ──────────────────────────────────────────────────────────────────
+function copyLog() {
+  const lines = Array.from(el('import-log').querySelectorAll('div')).map(d => d.textContent);
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = el('btn-copy-log');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy log'; }, 2000);
+  });
+}
+
+// ── Flag key validator ────────────────────────────────────────────────────────
+function validateFlagKey(key) {
+  // Mixpanel flag keys: lowercase alphanumeric, hyphens, underscores, max 256 chars
+  if (!key) return 'Key is empty';
+  if (key.length > 256) return `Key too long (${key.length} chars, max 256)`;
+  if (!/^[a-z0-9_-]+$/.test(key)) {
+    const bad = [...new Set(key.replace(/[a-z0-9_-]/g, '').split(''))].join('');
+    return `Invalid characters: ${bad} (only a-z, 0-9, _ and - allowed)`;
+  }
+  return null;
+}
+
+// ── mpFetch: fetch with 429 retry + network error handling ───────────────────
+async function mpFetch(url, options, maxRetries=3) {
+  let delay = 2000;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, options);
+    } catch (err) {
+      if (attempt === maxRetries) throw new Error(`Network error: ${err.message}`);
+      await sleep(delay); delay *= 2; continue;
+    }
+    if (res.status === 429) {
+      if (attempt === maxRetries) return res;
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '0') * 1000 || delay;
+      log(`   ⏳ Rate limited — waiting ${Math.round(retryAfter/1000)}s before retry ${attempt+1}/${maxRetries}…`, 'warn');
+      await sleep(retryAfter); delay *= 2; continue;
+    }
+    return res;
+  }
+}
+
 </script>
 </body>
 </html>

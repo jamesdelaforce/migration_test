@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GrowthBook → Mixpanel Migration Tool</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20width%3D%22140%22%20height%3D%22140%22%20viewBox%3D%220%200%20140%20140%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M48.0089%2061.4121H61.3939C58.0516%2059.3212%2056.8002%2056.3908%2055.1212%2050.9576L50.0998%2032.3454C47.803%2023.9817%2045.918%2020.0059%2036.7149%2020.0059H17.4849V25.0272H20.2094C25.8485%2025.0272%2026.4821%2027.1181%2028.1612%2033.3908L32.5489%2049.7062C34.8457%2057.658%2038.4098%2061.4121%2048.0247%2061.4121H48.0089ZM78.9765%2061.4121H92.3456C101.961%2061.4121%20105.303%2057.6422%20107.616%2049.7062L112.003%2033.3908C113.682%2027.1181%20114.506%2025.0272%20119.955%2025.0272H122.68V20.0059H103.655C94.2464%2020.0059%2092.3614%2023.7758%2090.2705%2032.3454L85.2492%2050.9576C83.5701%2056.5967%2082.3188%2059.3212%2078.9765%2061.4121ZM61.3939%2078.963H78.977L78.9765%2061.4121H61.3939V78.963ZM17.4849%20120.369H36.7149C45.918%20120.369%2047.803%20116.393%2050.0998%20108.03L55.1212%2089.4176C56.8002%2083.9844%2058.0516%2081.054%2061.3939%2078.963H48.0089C38.3939%2078.963%2034.8299%2082.733%2032.533%2090.6689L28.1453%20106.984C26.4663%20113.257%2025.8485%20115.348%2020.1935%20115.348H17.4849V120.369ZM103.624%20120.369H122.648V115.348H119.923C114.49%20115.348%20113.651%20113.257%20111.972%20106.984L107.584%2090.6689C105.287%2082.7172%20101.945%2078.963%2092.3139%2078.963H78.977C82.3193%2081.054%2083.5226%2083.7785%2085.2017%2089.4176L90.223%20108.03C92.3139%20116.599%2094.1989%20120.369%20103.608%20120.369H103.624Z%22%20fill%3D%22%237856FF%22/%3E%3C/svg%3E"/>
+<style>
+  :root {
+    --purple-01:#F2EEFF;--purple-02:#DAD0FF;--purple-03:#C1B1FF;
+    --purple-05:#9074FF;--purple-06:#7856FF;--purple-07:#5F41CF;
+    --purple-08:#472BA0;--purple-09:#2E1670;--purple-10:#150040;
+    --gray-01:#FAFAFA;--gray-02:#F4F4F4;--gray-03:#EAEAEA;
+    --gray-04:#DFDFDF;--gray-07:#A2A2A2;--gray-08:#797979;
+    --gray-09:#515151;--gray-10:#1F2023;
+    --text-primary:#1F2023;--text-secondary:rgba(0,0,0,0.70);
+    --text-muted:#797979;--surface:#FFFFFF;--border:#EAEAEA;--border-strong:#DFDFDF;
+    --grass-01:#EBF6F1;--grass-06:#3BA974;--grass-07:#2C885C;--grass-09:#0F472C;
+    --lava-01:#FFF0ED;--lava-06:#FF7557;--lava-07:#CC5849;--lava-09:#661D2D;
+    --mustard-01:#FEF8EB;--mustard-07:#CA9430;--mustard-09:#6E4319;
+    --pool-01:#F0F9FE;--pool-06:#72BEF4;--pool-09:#1D4B6D;
+    --radius:8px;--radius-sm:4px;--radius-pill:40px;
+    --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono','Fira Code',monospace;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font);background:var(--gray-01);color:var(--text-primary);font-size:14px;line-height:1.5;}
+  .app{display:flex;height:100vh;overflow:hidden;}
+  .sidebar{width:232px;background:var(--purple-10);display:flex;flex-direction:column;flex-shrink:0;}
+  .sidebar-logo{padding:20px 16px 18px;border-bottom:1px solid rgba(255,255,255,0.08);}
+  .sidebar-logo-wordmark{display:block;width:120px;height:auto;}
+  .sidebar-logo-sub{font-size:11px;color:rgba(255,255,255,0.45);margin-top:8px;font-weight:400;letter-spacing:0.02em;display:flex;align-items:center;gap:5px;}
+  .sidebar-logo-sub span{color:rgba(255,255,255,0.25);font-size:10px;}
+  .sidebar-nav{padding:10px 8px;flex:1;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;color:rgba(255,255,255,0.55);transition:all 0.13s;margin-bottom:1px;border:none;background:none;width:100%;text-align:left;letter-spacing:0.01em;}
+  .nav-item:hover{background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.85);}
+  .nav-item.active{background:rgba(120,86,255,0.25);color:#C1B1FF;}
+  .nav-item.active .step-num{background:var(--purple-06);color:white;}
+  .nav-item.done{color:rgba(255,255,255,0.45);}
+  .nav-item.done .step-num{background:var(--grass-06);color:white;}
+  .step-num{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,0.10);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:rgba(255,255,255,0.5);transition:all 0.13s;}
+  .sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.25);}
+  .main{flex:1;overflow-y:auto;background:var(--gray-01);}
+  .view{display:none;padding:32px 36px;max-width:980px;}
+  .view.active{display:block;}
+  .view-header{margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border);}
+  .view-title{font-size:22px;font-weight:600;color:var(--gray-10);line-height:1.3;}
+  .view-sub{font-size:14px;color:var(--text-secondary);margin-top:4px;}
+  .section-label{font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field.span2{grid-column:span 2;}
+  .field label{font-size:12px;font-weight:500;color:var(--gray-09);letter-spacing:0.01em;}
+  .field input,.field select{font-size:13px;font-family:var(--font);padding:8px 11px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);outline:none;transition:border-color 0.12s,box-shadow 0.12s;}
+  .field input:focus,.field select:focus{border-color:var(--purple-06);box-shadow:0 0 0 3px rgba(120,86,255,0.12);}
+  .field input[type=password]{font-family:monospace;letter-spacing:0.1em;}
+  .auth-preview{font-size:11px;font-family:var(--mono);color:var(--text-muted);background:var(--gray-02);padding:7px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-top:6px;}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:var(--surface);color:var(--gray-10);font-size:13px;font-family:var(--font);font-weight:500;cursor:pointer;transition:all 0.12s;white-space:nowrap;}
+  .btn:hover{background:var(--gray-02);border-color:var(--gray-04);}
+  .btn:active{transform:scale(0.98);}
+  .btn:disabled{opacity:0.38;cursor:not-allowed;transform:none;}
+  .btn-primary{background:var(--gray-10);color:white;border-color:var(--gray-10);border-radius:var(--radius-pill);padding:8px 20px;}
+  .btn-primary:hover{background:var(--gray-09);border-color:var(--gray-09);}
+  .btn-purple{background:var(--purple-06);color:white;border-color:var(--purple-06);border-radius:var(--radius-pill);padding:8px 20px;}
+  .btn-purple:hover{background:var(--purple-07);border-color:var(--purple-07);}
+  .btn-sm{padding:5px 12px;font-size:12px;}
+  .btn-icon{padding:6px 8px;}
+  .alert{padding:11px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:14px;border:1px solid;line-height:1.6;}
+  .alert-error{background:var(--lava-01);border-color:#FFBFB1;color:var(--lava-07);}
+  .alert-info{background:var(--pool-01);border-color:#BEE1FA;color:var(--pool-09);}
+  .alert-warn{background:var(--mustard-01);border-color:#FCE0A5;color:var(--mustard-09);}
+  .alert-ok{background:var(--grass-01);border-color:#A5D7BF;color:var(--grass-09);}
+  .pill{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:500;}
+  .pill-purple{background:var(--purple-01);color:var(--purple-08);}
+  .pill-green{background:var(--grass-01);color:var(--grass-07);}
+  .pill-red{background:var(--lava-01);color:var(--lava-07);}
+  .pill-amber{background:var(--mustard-01);color:var(--mustard-07);}
+  .pill-neutral{background:var(--gray-02);color:var(--gray-08);border:1px solid var(--border);}
+  .pill-teal{background:var(--pool-01);color:var(--pool-09);}
+  .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+  table{width:100%;border-collapse:collapse;}
+  th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);padding:9px 12px;text-align:left;background:var(--gray-02);border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr.selected td{background:var(--purple-01);}
+  tr:hover td{background:var(--gray-01);}
+  tr.selected:hover td{background:#EBE5FF;}
+  .mono{font-family:var(--mono);font-size:12px;}
+  .sdk-select{font-size:12px;font-family:var(--font);padding:4px 7px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);outline:none;max-width:160px;}
+  .sdk-select:focus{border-color:var(--purple-06);}
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.04);position:relative;overflow:hidden;}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--purple-06),var(--purple-03));opacity:0;transition:opacity 0.2s;}
+  .stat-card:hover::before{opacity:1;}
+  .stat-n{font-size:26px;font-weight:600;line-height:1;color:var(--gray-10);}
+  .stat-l{font-size:12px;color:var(--text-muted);margin-top:5px;}
+  .log{background:var(--purple-10);color:var(--purple-03);border-radius:var(--radius);padding:14px 16px;font-family:var(--mono);font-size:12px;line-height:1.8;max-height:280px;overflow-y:auto;border:1px solid rgba(120,86,255,0.2);}
+  .log .ok{color:#7FE1D8;}.log .err{color:#FFBFB1;}.log .warn{color:#FAD482;}.log .info{color:var(--purple-03);}
+  .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .toolbar input[type=text]{font-size:13px;font-family:var(--font);padding:8px 11px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);outline:none;min-width:200px;flex:1;transition:border-color 0.12s,box-shadow 0.12s;}
+  .toolbar input:focus{border-color:var(--purple-06);box-shadow:0 0 0 3px rgba(120,86,255,0.12);}
+  .toolbar select{font-size:13px;font-family:var(--font);padding:8px 11px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);outline:none;}
+  .badge{font-size:12px;color:var(--text-muted);font-weight:500;}
+  .export-bar{display:flex;align-items:center;gap:8px;padding:11px 16px;background:var(--purple-01);border:1px solid var(--purple-02);border-radius:var(--radius);margin-bottom:18px;}
+  .export-bar span{font-size:13px;color:var(--purple-09);flex:1;font-weight:500;}
+  .progress-bar-wrap{background:var(--gray-03);border-radius:4px;height:6px;overflow:hidden;margin-top:8px;}
+  .progress-bar{height:100%;background:linear-gradient(90deg,var(--purple-06),var(--purple-04));border-radius:4px;transition:width 0.3s;}
+  .dry-run-label{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--gray-09);cursor:pointer;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);user-select:none;}
+  .dry-run-label:hover{background:var(--gray-02);}
+  input[type=checkbox]{accent-color:var(--purple-06);}
+  .sel-all-row{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--gray-02);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted);}
+  /* path cards */
+  .of-path-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
+  .of-path-card{border:2px solid var(--border);border-radius:var(--radius);padding:18px 20px;cursor:pointer;transition:all 0.15s;background:var(--surface);}
+  .of-path-card:hover{border-color:var(--purple-05);background:var(--purple-01);}
+  .of-path-card.selected{border-color:var(--purple-06);background:var(--purple-01);}
+  .of-path-card-title{font-size:14px;font-weight:600;color:var(--gray-10);margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .of-path-card-desc{font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px;}
+  .of-steps-list{list-style:none;padding:0;}
+  .of-steps-list li{font-size:12px;color:var(--text-secondary);padding:3px 0 3px 16px;position:relative;}
+  .of-steps-list li::before{content:'→';position:absolute;left:0;color:var(--purple-06);}
+  .of-banner{display:flex;align-items:flex-start;gap:14px;padding:16px 20px;border-radius:var(--radius);border:1.5px solid var(--purple-03);background:var(--purple-01);margin-bottom:20px;}
+  .of-banner-icon{font-size:22px;flex-shrink:0;line-height:1.4;}
+  .of-banner-body{flex:1;}
+  .of-banner-title{font-size:14px;font-weight:600;color:var(--purple-09);margin-bottom:4px;}
+  .of-banner-text{font-size:13px;color:var(--purple-08);line-height:1.6;}
+  /* risk badges */
+  .risk-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:0.02em;white-space:nowrap;margin:1px;}
+  .risk-high{background:var(--lava-01);color:var(--lava-07);border:1px solid #FFBFB1;}
+  .risk-medium{background:var(--mustard-01);color:var(--mustard-07);border:1px solid #FCE0A5;}
+  .risk-info{background:var(--pool-01);color:var(--pool-09);border:1px solid #BEE1FA;}
+  .risk-cell{display:flex;flex-wrap:wrap;gap:2px;max-width:200px;}
+  /* code */
+  .code-flag-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+  .code-flag-header{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--gray-02);border-bottom:1px solid var(--border);}
+  .code-flag-header .flag-key{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--purple-08);}
+  .code-pre{background:var(--purple-10);color:#C1B1FF;padding:14px 16px;font-family:var(--mono);font-size:12px;line-height:1.75;overflow-x:auto;white-space:pre;margin:0;}
+  .code-pre .kw{color:#A993FF;}.code-pre .str{color:#7FE1D8;}.code-pre .cm{color:rgba(193,177,255,0.35);}.code-pre .fn{color:#8BCCF6;}.code-pre .num{color:#FAD482;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── Sidebar ── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <svg class="sidebar-logo-wordmark" viewBox="0 0 400 95" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 73.4531H23.9775V70.905H22.1769C18.6724 70.905 17.8284 69.9485 17.8284 66.452V34.8384C20.2719 30.6988 23.5595 28.0462 27.6991 28.0462C32.8997 28.0462 36.0827 31.8643 36.0827 39.0825V66.46C36.0827 69.9646 35.2307 70.9131 31.8386 70.9131H29.9256V73.4611H53.3725V70.9131H51.6765C48.1719 70.9131 47.3279 69.9565 47.3279 66.46V37.9089C47.3279 36.9524 47.3279 35.9959 47.2234 35.0474C49.5545 30.8033 53.0591 28.0462 57.1986 28.0462C62.3993 28.0462 65.5823 31.8643 65.5823 39.0825V66.46C65.5823 69.9646 64.7303 70.9131 61.3382 70.9131H59.4252V73.4611H82.8721V70.9131H81.2806C77.6715 70.9131 76.8275 69.9565 76.8275 66.46V37.9089C76.8275 27.1942 70.7829 21.2541 61.9732 21.2541C55.3981 21.2541 49.667 24.8632 46.5884 32.0733C44.7879 25.0722 39.4828 21.2541 32.4737 21.2541C26.212 21.2541 20.8024 24.6461 17.8284 31.4383V22.5241H0V25.0722H2.12204C5.73112 25.0722 6.57511 26.0287 6.57511 29.5252V66.452C6.57511 69.9565 5.72308 70.905 2.12204 70.905H0V73.4531Z" fill="#7856FF"/>
+      <path d="M96.9789 14.0359C100.797 14.0359 103.98 10.8529 103.98 7.03482C103.98 3.21675 100.797 0.0336914 96.9789 0.0336914C93.1608 0.0336914 89.9777 3.21675 89.9777 7.03482C89.9777 10.8529 93.1608 14.0359 96.9789 14.0359ZM85.0987 73.4531H108.65V70.905H107.059C103.554 70.905 102.71 69.9485 102.71 66.452V22.5241H84.8816V25.0722H87.0037C90.6127 25.0722 91.4567 26.0287 91.4567 29.5252V66.452C91.4567 69.9565 90.6047 70.905 87.0037 70.905H85.0906V73.4531H85.0987Z" fill="#7856FF"/>
+      <path d="M125.843 43.5355H132.636C130.94 42.4745 130.305 40.9875 129.453 38.2304L126.904 28.7857C125.739 24.5417 124.782 22.5241 120.112 22.5241H110.354V25.0722H111.737C114.598 25.0722 114.92 26.1332 115.772 29.3162L117.998 37.5954C119.164 41.6305 120.972 43.5355 125.851 43.5355H125.843ZM141.55 43.5355H148.342C153.221 43.5355 154.917 41.6225 156.091 37.5954L158.317 29.3162C159.169 26.1332 159.587 25.0722 162.352 25.0722H163.735V22.5241H154.081C149.306 22.5241 148.35 24.4372 147.289 28.7857L144.741 38.2304C143.889 41.092 143.246 42.4745 141.55 43.5355ZM132.636 52.4497H141.55V43.5355H132.636V52.4497ZM110.354 73.4611H120.112C124.782 73.4611 125.739 71.4436 126.904 67.1995L129.453 57.7548C130.305 54.9978 130.94 53.5107 132.636 52.4497H125.843C120.964 52.4497 119.156 54.3628 117.99 58.3898L115.764 66.669C114.912 69.852 114.598 70.9131 111.729 70.9131H110.346V73.4611H110.354ZM154.065 73.4611H163.719V70.9131H162.336C159.579 70.9131 159.153 69.852 158.301 66.669L156.074 58.3898C154.909 54.3547 153.213 52.4497 148.326 52.4497H141.55C143.246 53.5107 143.865 54.8933 144.717 57.7548L147.265 67.1995C148.326 71.5481 149.282 73.4611 154.057 73.4611H154.065Z" fill="#7856FF"/>
+      <path d="M165.101 94.6815H189.714V92.1335H187.166C183.774 92.1335 182.922 91.1769 182.922 87.6804V67.4165C186 71.9821 191.201 74.7392 197.35 74.7392C208.917 74.7392 218.144 64.555 218.144 46.9437C218.144 31.0283 209.447 21.2702 198.194 21.2702C191.619 21.2702 186.097 25.0882 182.913 31.8804V22.5402H165.085V25.0882H167.207C170.712 25.0882 171.66 26.0448 171.66 29.5413V87.6724C171.66 91.1769 170.704 92.1254 167.207 92.1254H165.085V94.6735L165.101 94.6815ZM194.175 27.8372C201.071 27.8372 206.698 34.3079 206.698 47.1446C206.698 61.1469 201.497 68.791 194.392 68.791C189.826 68.791 185.799 66.3475 182.93 62.1034V35.7869C185.687 30.5863 189.617 27.8292 194.175 27.8292V27.8372Z" fill="#7856FF"/>
+      <path d="M234.92 74.5221C241.816 74.5221 247.33 71.2346 251.47 63.8074V64.973C251.47 71.3391 255.505 74.0961 262.185 74.0961C264.202 74.0961 266.75 73.8871 268.446 73.3566V70.7041C267.594 70.9131 266.959 71.0256 266.324 71.0256C263.672 71.0256 262.82 69.4341 262.82 66.886V39.7175C262.82 27.1942 255.818 21.2541 244.043 21.2541C236.19 21.2541 228.553 24.8632 223.674 28.6812L225.37 31.6553C230.466 28.1507 235.45 26.1412 240.86 26.1412C247.861 26.1412 251.47 29.9593 251.47 38.8735V41.2045L238.416 46.3006C226.536 51.1797 222.179 55.7453 222.179 62.6419C222.179 69.5386 227.058 74.5221 234.912 74.5221H234.92ZM233.328 59.8768C233.328 54.5717 236.407 50.7537 242.668 47.9966L251.478 44.1786V60.7289C248.19 65.2945 244.372 67.947 240.233 67.947C236.093 67.947 233.336 65.0855 233.336 59.8849L233.328 59.8768Z" fill="#7856FF"/>
+      <path d="M270.568 73.4611H294.763V70.9131H292.745C289.241 70.9131 288.397 69.9565 288.397 66.46V34.9429C290.84 30.6988 294.441 28.0462 298.685 28.0462C304.199 28.0462 307.704 31.8643 307.704 39.0825V66.46C307.704 69.9646 306.852 70.9131 303.46 70.9131H301.442V73.4611H325.524V70.9131H323.402C319.793 70.9131 318.949 69.9565 318.949 66.46V37.9089C318.949 27.1942 312.583 21.2541 303.564 21.2541C296.989 21.2541 291.467 24.6461 288.389 31.4383V22.5241H270.56V25.0722H272.682C276.291 25.0722 277.135 26.0287 277.135 29.5252V66.452C277.135 69.9565 276.283 70.905 272.682 70.905H270.56V73.4531L270.568 73.4611Z" fill="#7856FF"/>
+      <path d="M353.111 74.7311C360.112 74.7311 366.695 71.5481 371.47 67.73L369.878 65.399C365.634 68.4775 360.859 69.8521 356.406 69.8521C345.587 69.8521 339.221 62.2159 339.221 47.3616V45.4486H372.748C372.539 31.1248 363.729 21.3666 350.892 21.3666C338.056 21.3666 327.759 32.9334 327.759 48.2137C327.759 64.981 337.308 74.7392 353.119 74.7392L353.111 74.7311ZM350.989 24.0111C357.355 24.0111 361.277 30.9078 361.92 42.579H339.43C340.387 30.8033 344.84 24.0111 350.997 24.0111H350.989Z" fill="#7856FF"/>
+      <path d="M375.071 73.4531H399.683V70.905H397.24C393.735 70.905 392.891 69.9485 392.891 66.452V1.3037H375.063V3.85176H377.185C380.689 3.85176 381.638 4.80828 381.638 8.30483V66.452C381.638 69.9565 380.681 70.905 377.185 70.905H375.063V73.4531H375.071Z" fill="#7856FF"/>
+    </svg>
+    <div class="sidebar-logo-sub">GrowthBook <span>→</span> Mixpanel</div>
+  </div>
+  <div class="sidebar-nav">
+    <button class="nav-item active" data-view="path" onclick="goTo('path')"><span class="step-num" id="sn-path">0</span> Migration path</button>
+    <button class="nav-item" data-view="config" onclick="goTo('config')"><span class="step-num" id="sn-config">1</span> Configure</button>
+    <button class="nav-item" data-view="select" onclick="goTo('select')"><span class="step-num" id="sn-select">2</span> Select flags</button>
+    <button class="nav-item" data-view="export" onclick="goTo('export')"><span class="step-num" id="sn-export">3</span> Export report</button>
+    <button class="nav-item" data-view="code" onclick="goTo('code')"><span class="step-num" id="sn-code">4</span> Code samples</button>
+    <button class="nav-item" data-view="import" onclick="goTo('import')"><span class="step-num" id="sn-import">5</span> Import</button>
+  </div>
+  <div class="sidebar-footer">Feature Flags · Migration Tool</div>
+</nav>
+
+<!-- ── Main ── -->
+<main class="main">
+
+<!-- STEP 0: Migration path -->
+<div class="view active" id="view-path">
+  <div class="view-header">
+    <div class="view-title">Choose your migration path</div>
+    <div class="view-sub">GrowthBook supports the OpenFeature standard. The right path depends on how your codebase currently uses GrowthBook.</div>
+  </div>
+  <div class="of-banner">
+    <div class="of-banner-icon">🔌</div>
+    <div class="of-banner-body">
+      <div class="of-banner-title">GrowthBook supports OpenFeature</div>
+      <div class="of-banner-text">GrowthBook provides official OpenFeature providers for JavaScript, Node.js, React, Go, and more. If your team is already using the OpenFeature SDK with the GrowthBook provider, migrating to Mixpanel is a <strong>single provider swap</strong> — no flag evaluation code changes needed anywhere in your codebase.</div>
+    </div>
+  </div>
+  <div class="of-path-cards">
+    <div class="of-path-card" id="card-openfeature" onclick="selectPath('openfeature')">
+      <div class="of-path-card-title"><span>⚡</span> Path A — OpenFeature provider swap <span class="pill pill-green" style="margin-left:auto;font-size:10px">Fastest</span></div>
+      <div class="of-path-card-desc">Your codebase already uses <code style="background:var(--gray-02);padding:1px 5px;border-radius:3px">@openfeature/growthbook-provider</code> or similar. Swap the provider, update your project token and flag keys — all evaluation calls stay unchanged.</div>
+      <ul class="of-steps-list">
+        <li>Install the Mixpanel OpenFeature provider</li>
+        <li>Replace the GrowthBook provider in your OpenFeature init</li>
+        <li>Update project token and flag keys if they differ</li>
+        <li>No changes to <code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px">client.getBooleanValue()</code> call sites</li>
+      </ul>
+    </div>
+    <div class="of-path-card" id="card-native" onclick="selectPath('native')">
+      <div class="of-path-card-title"><span>🔄</span> Path B — Full SDK migration <span class="pill pill-neutral" style="margin-left:auto;font-size:10px">Standard</span></div>
+      <div class="of-path-card-desc">Your codebase uses the native GrowthBook SDK directly (e.g. <code style="background:var(--gray-02);padding:1px 5px;border-radius:3px">growthbook.isFeatureEnabled()</code>). You'll swap to the Mixpanel SDK and update evaluation call sites.</div>
+      <ul class="of-steps-list">
+        <li>Import flags into Mixpanel (steps 1–5 of this tool)</li>
+        <li>Install the Mixpanel SDK</li>
+        <li>Replace GrowthBook SDK init with Mixpanel init</li>
+        <li>Update flag evaluation calls to Mixpanel equivalents</li>
+      </ul>
+    </div>
+  </div>
+  <div id="path-hint" style="display:none" class="alert alert-info">
+    <strong>Flag keys:</strong> As long as your flag keys in Mixpanel match the keys used in your OpenFeature / GrowthBook calls, no evaluation code changes are needed. Use steps 1–5 of this tool to import your GrowthBook flags into Mixpanel with the same keys.
+  </div>
+  <div id="path-continue" style="display:none;margin-top:4px">
+    <button class="btn btn-primary" onclick="goTo('config')">Continue → Connect &amp; import flags</button>
+  </div>
+</div>
+
+<!-- STEP 1: Configure -->
+<div class="view" id="view-config">
+  <div class="view-header">
+    <div class="view-title">Configure connections</div>
+    <div class="view-sub">Enter your GrowthBook and Mixpanel credentials, then fetch your feature flags.</div>
+  </div>
+
+  <div class="section-label">GrowthBook</div>
+  <div class="card">
+    <div class="grid-2">
+      <div class="field span2">
+        <label>Secret API key</label>
+        <input type="password" id="gb-token" placeholder="secret_abc123DEF456 — from Settings → API Keys"/>
+      </div>
+      <div class="field">
+        <label>API base URL</label>
+        <input type="text" id="gb-host" value="https://api.growthbook.io" placeholder="https://api.growthbook.io (or your self-hosted domain)"/>
+      </div>
+      <div class="field">
+        <label>Primary environment</label>
+        <input type="text" id="gb-env" value="production" placeholder="e.g. production"/>
+      </div>
+    </div>
+    <div class="auth-preview" id="gb-auth-preview">Enter your GrowthBook secret key above.</div>
+    <div class="alert alert-info" style="margin-top:14px;margin-bottom:0;font-size:12px">
+      Generate a key at <strong>Settings → API Keys</strong>. A <em>readonly</em> Secret Key is sufficient for fetching flags.
+      For self-hosted GrowthBook, enter your instance URL in the base URL field.
+    </div>
+  </div>
+
+  <div class="section-label">Mixpanel</div>
+  <div class="card">
+    <div class="grid-2">
+      <div class="field">
+        <label>Service account username</label>
+        <input type="text" id="mp-user" autocomplete="off" placeholder="service-account.abc123.mp-service-account"/>
+      </div>
+      <div class="field">
+        <label>Service account secret</label>
+        <input type="password" id="mp-secret" autocomplete="off" placeholder="Your service account secret"/>
+      </div>
+      <div class="field">
+        <label>Project ID</label>
+        <input type="text" id="mp-project" placeholder="e.g. 99887766"/>
+      </div>
+      <div class="field">
+        <label>Workspace ID</label>
+        <input type="text" id="mp-workspace" placeholder="e.g. 55443322"/>
+      </div>
+      <div class="field">
+        <label>Project token (for code samples)</label>
+        <input type="text" id="mp-token" placeholder="e.g. abc123def456"/>
+      </div>
+      <div class="field">
+        <label>Region / Data residency</label>
+        <select id="mp-region">
+          <option value="us">US — mixpanel.com</option>
+          <option value="eu">EU — eu.mixpanel.com</option>
+          <option value="in">India — in.mixpanel.com</option>
+        </select>
+      </div>
+          </div>
+    <div class="auth-preview" id="mp-auth-preview">Mixpanel Authorization header preview will appear once credentials are filled.</div>
+  </div>
+
+  <div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap">
+    <button class="btn btn-primary" id="btn-fetch" onclick="fetchFlags()">Fetch flags from GrowthBook</button>
+    <label class="dry-run-label" style="gap:8px">
+      <span style="white-space:nowrap">Max requests / 10 s</span>
+      <input type="number" id="rate-limit" value="50" min="1" max="200" step="5"
+        style="width:56px;font-size:13px;font-family:var(--font);padding:3px 7px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);outline:none;text-align:center"
+        oninput="updateRateHint()"/>
+    </label>
+    <span id="rate-hint" style="font-size:12px;color:var(--text-muted)">Lower if you get rate limited (60 req/min limit)</span>
+  </div>
+  <div id="config-error" style="display:none;margin-top:12px"></div>
+</div>
+
+<!-- STEP 2: Select flags -->
+<div class="view" id="view-select">
+  <div class="view-header">
+    <div class="view-title">Select flags to migrate</div>
+    <div class="view-sub">Choose which flags to import, set the Mixpanel SDK, and review migration risks for each one.</div>
+  </div>
+  <div class="export-bar">
+    <span id="sel-summary">Select flags below</span>
+    <button class="btn btn-sm" onclick="exportCSV()">⬇ Export flag list (CSV)</button>
+    <button class="btn btn-sm btn-purple" onclick="goTo('export')">View report →</button>
+  </div>
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Search by key or name…" oninput="renderTable()"/>
+    <select id="f-status" onchange="renderTable()">
+      <option value="">All statuses</option>
+      <option value="enabled">Enabled</option>
+      <option value="disabled">Disabled</option>
+      <option value="archived">Archived</option>
+    </select>
+    <select id="f-type" onchange="renderTable()">
+      <option value="">All value types</option>
+      <option value="boolean">Boolean</option>
+      <option value="string">String</option>
+      <option value="number">Number</option>
+      <option value="json">JSON</option>
+    </select>
+    <select id="f-rule" onchange="renderTable()">
+      <option value="">All rule types</option>
+      <option value="experiment">Has experiment</option>
+      <option value="rollout">Rollout only</option>
+      <option value="force">Force rules only</option>
+      <option value="plain">No rules</option>
+    </select>
+    <select id="f-risk" onchange="renderTable()">
+      <option value="">All risk levels</option>
+      <option value="high">⚠ High risk</option>
+      <option value="medium">~ Medium risk</option>
+      <option value="clean">✓ Clean</option>
+    </select>
+    <span class="badge" id="count-badge">0 flags</span>
+    <button class="btn btn-sm btn-purple" onclick="goTo('import')">Import selected →</button>
+  </div>
+  <div class="table-wrap">
+    <div class="sel-all-row">
+      <input type="checkbox" id="chk-all" onchange="toggleAll()"/>
+      <label for="chk-all">Select all visible</label>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:32px"></th>
+        <th>Key</th><th>Name / description</th><th>Status</th><th>Value type</th>
+        <th>Rule types</th><th>Migration risks</th><th>Mixpanel SDK</th><th>Eval mode</th>
+      </tr></thead>
+      <tbody id="flag-tbody"></tbody>
+    </table>
+    <div id="empty-msg" style="display:none;text-align:center;padding:40px;color:var(--text-muted);font-size:13px">No flags match your filter.</div>
+  </div>
+</div>
+
+<!-- STEP 3: Export report -->
+<div class="view" id="view-export">
+  <div class="view-header">
+    <div class="view-title">Flag migration report</div>
+    <div class="view-sub">Shareable summary of all retrieved flags and their migration status.</div>
+  </div>
+  <div class="export-bar">
+    <span>Share this report with your team before importing.</span>
+    <button class="btn btn-sm" onclick="exportCSV()">⬇ CSV</button>
+    <button class="btn btn-sm" onclick="exportJSON()">⬇ JSON</button>
+    <button class="btn btn-sm" onclick="exportMarkdown()">⬇ Markdown</button>
+  </div>
+  <div class="stats-row" id="report-stats"></div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table>
+      <thead><tr>
+        <th>Key</th><th>Status</th><th>Value type</th><th>Rule types</th>
+        <th>Risks</th><th>Default value</th><th>SDK</th><th>Selected</th>
+      </tr></thead>
+      <tbody id="report-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- STEP 4: Code samples -->
+<div class="view" id="view-code">
+  <div class="view-header">
+    <div class="view-title">SDK code samples</div>
+    <div class="view-sub">Ready-to-paste Mixpanel SDK implementation for each selected flag.</div>
+  </div>
+  <div class="export-bar">
+    <span>Generated for <span id="code-count">0</span> selected flags.</span>
+    <button class="btn btn-sm" onclick="exportCodeSamples()">⬇ Export all (.md)</button>
+  </div>
+  <div id="code-blocks"></div>
+  <div id="code-empty" style="display:none;text-align:center;padding:60px;color:var(--text-muted)">Select flags in step 2 to generate code samples.</div>
+</div>
+
+<!-- STEP 5: Import -->
+<div class="view" id="view-import">
+  <div class="view-header">
+    <div class="view-title">Import to Mixpanel</div>
+    <div class="view-sub">Creates feature flags in Mixpanel, translating GrowthBook rules to Mixpanel rollout entries.</div>
+  </div>
+  <div class="alert alert-info" style="margin-bottom:16px">
+    <strong>ℹ Rules translation</strong> — GrowthBook <em>force</em> rules with targeting conditions are translated to Mixpanel <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">runtime_evaluation_rule</code> (JsonLogic). <em>Rollout</em> rules map to <code>rollout_percentage</code>. <em>Experiment-ref</em> rules are flagged for manual linking. <em>SavedGroup</em> conditions are noted in the import log but cannot be auto-translated.
+  </div>
+  <div class="alert alert-warn" style="margin-bottom:20px">
+    <strong>⚠ Default value mapping</strong> — GrowthBook's <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">defaultValue</code> becomes the Mixpanel <em>control</em> variant. All other values become treatments. For non-boolean flags, variation values are preserved in variant descriptions — Mixpanel flag variants use string keys.
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-n" id="s-total">0</div><div class="stat-l">flags selected</div></div>
+    <div class="stat-card"><div class="stat-n" id="s-flag" style="color:var(--grass-06)">0</div><div class="stat-l">flags created</div></div>
+    <div class="stat-card"><div class="stat-n" id="s-skip" style="color:var(--mustard-07)">0</div><div class="stat-l">skipped (exist)</div></div>
+    <div class="stat-card"><div class="stat-n" id="s-fail" style="color:var(--lava-07)">0</div><div class="stat-l">failed</div></div>
+        <div class="stat-card"><div class="stat-n" id="s-skip" style="color:var(--text-muted)">0</div><div class="stat-l">skipped</div></div>
+  </div>
+  <div class="progress-bar-wrap" style="margin-bottom:12px">
+    <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+  </div>
+  <div class="log" id="import-log">Ready — press Run import to begin.</div>
+  <div style="display:flex;gap:8px;margin-top:16px;align-items:center;flex-wrap:wrap">
+    <button class="btn" onclick="goTo('select')">← Back</button>
+    <button class="btn btn-primary" id="btn-preview" onclick="runImport(true)">Preview</button>
+    <button class="btn btn-primary" id="btn-run" onclick="runImport(false)" style="background:var(--grass-06);border-color:var(--grass-06)">Import</button>
+    <button class="btn" id="btn-abort" onclick="abortImport()" style="display:none;background:var(--lava-07);color:white;border-color:var(--lava-07)">Abort</button>
+    <button class="btn" id="btn-retry" onclick="retryFailed()" style="display:none">Retry failed</button>
+    <button class="btn" id="btn-copy-log" onclick="copyLog()" style="display:none">Copy log</button>
+    <span id="import-mode-hint" style="font-size:12px;color:var(--text-muted);margin-left:8px">Preview first to check payloads, then Import to create flags in Mixpanel.</span>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let allFlags = [];
+let importAborted = false;
+let failedFlags = []; // for retry
+let selectedKeys = new Set();
+let flagSdks = {};
+let flagEvalModes = {};
+let encodedMpAuth = '';
+
+const SDKS = [
+  { id: 'javascript', label: 'JavaScript (Web)',  serving: 'client' },
+  { id: 'nodejs',     label: 'Node.js',           serving: 'server' },
+  { id: 'python',     label: 'Python',            serving: 'server' },
+  { id: 'swift',      label: 'iOS (Swift)',       serving: 'client' },
+  { id: 'android',    label: 'Android',           serving: 'client' },
+  { id: 'reactnative',label: 'React Native',      serving: 'client' },
+  { id: 'flutter',    label: 'Flutter',           serving: 'client' },
+  { id: 'go',         label: 'Go',                serving: 'server' },
+  { id: 'ruby',       label: 'Ruby',              serving: 'server' },
+  { id: 'java',       label: 'Java',              serving: 'server' },
+];
+
+// ── Auth previews ─────────────────────────────────────────────────────────────
+document.getElementById('gb-token').addEventListener('input', () => {
+  const t = v('gb-token');
+  el('gb-auth-preview').textContent = t
+    ? `Authorization: Bearer ${t.slice(0,12)}…  (GrowthBook secret key)`
+    : 'Enter your GrowthBook secret key above.';
+});
+document.getElementById('mp-user').addEventListener('input', updateMpAuth);
+document.getElementById('mp-secret').addEventListener('input', updateMpAuth);
+function updateMpAuth() {
+  const u = v('mp-user'), s = v('mp-secret');
+  if (u && s) {
+    encodedMpAuth = btoa(`${u}:${s}`);
+    el('mp-auth-preview').textContent = `Mixpanel Authorization: Basic ${encodedMpAuth.slice(0,14)}…`;
+  } else { encodedMpAuth = ''; el('mp-auth-preview').textContent = 'Fill both fields above.'; }
+}
+
+// ── Path selection ────────────────────────────────────────────────────────────
+function selectPath(p) {
+  document.querySelectorAll('.of-path-card').forEach(c => c.classList.remove('selected'));
+  el(`card-${p}`).classList.add('selected');
+  el('path-hint').style.display = '';
+  el('path-continue').style.display = '';
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goTo(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el(`view-${id}`).classList.add('active');
+  document.querySelector(`[data-view="${id}"]`).classList.add('active');
+  if (id === 'export') renderReport();
+  if (id === 'code')   renderCodeBlocks();
+  if (id === 'import') { el('s-total').textContent = selectedKeys.size; updateImportRateHint(); }
+}
+
+// ── Rate limit ────────────────────────────────────────────────────────────────
+function getCfg() {
+  // GB rate limit: 60 req/min = 10 req/10s. Default 50 req/10s = safe.
+  const rateLimit = Math.max(1, parseInt(v('rate-limit') || '50', 10) || 50);
+  const delayMs   = Math.ceil((10000 / rateLimit) * 1.2);
+  return {
+    gbToken:     v('gb-token'),
+    gbHost:      (v('gb-host') || 'https://api.growthbook.io').replace(/\/$/, ''),
+    gbEnv:       v('gb-env') || 'production',
+    mpProject:   v('mp-project'),
+    mpWorkspace: v('mp-workspace'),
+    mpRegion:    v('mp-region') || 'us',
+    rateLimit, delayMs,
+  };
+}
+
+function updateRateHint() {
+  const rateLimit = Math.max(1, parseInt(v('rate-limit') || '50', 10) || 50);
+  const delayMs   = Math.ceil((10000 / rateLimit) * 1.2);
+  const n = selectedKeys.size || 0;
+  const est = n > 0 ? Math.round((n * delayMs) / 1000) : null;
+  el('rate-hint').textContent = `~${delayMs}ms between flags`
+    + (est ? ` · ~${est}s for ${n} flags` : ' · Lower if rate limited (60 req/min limit)');
+}
+
+function updateImportRateHint() {
+  const rateLimit = Math.max(1, parseInt(v('rate-limit') || '50', 10) || 50);
+  const delayMs   = Math.ceil((10000 / rateLimit) * 1.2);
+  const n = selectedKeys.size || 0;
+  const est = n > 0 ? Math.round((n * delayMs) / 1000) : null;
+  el('import-rate-hint').textContent = est ? `~${est}s estimated at ${rateLimit} req/10s` : '';
+}
+
+// ── Fetch flags from GrowthBook ───────────────────────────────────────────────
+async function fetchFlags() {
+  const cfg = getCfg();
+  const eb = el('config-error'); eb.style.display = 'none';
+  if (!cfg.gbToken)     return showErr(eb, 'GrowthBook API secret key is required.');
+  if (!v('mp-user') || !v('mp-secret')) return showErr(eb, 'Mixpanel service account credentials are required.');
+  const btn = el('btn-fetch'); btn.disabled = true; btn.textContent = 'Fetching…';
+  try {
+    allFlags = await doFetchFlags(cfg);
+    allFlags.forEach(f => { if (!flagSdks[f.id]) flagSdks[f.id] = 'javascript'; });
+    selectedKeys = new Set(allFlags.map(f => f.id));
+    renderTable();
+    markNavDone('config');
+    goTo('select');
+  } catch(e) { showErr(eb, e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Fetch flags from GrowthBook'; }
+}
+
+async function doFetchFlags(cfg) {
+  const flags = [];
+  let offset = 0, hasMore = true;
+  while (hasMore) {
+    const url = `${cfg.gbHost}/api/v1/features?limit=100&offset=${offset}`;
+    const res = await fetch(url, { headers: gbHeaders(cfg) });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`GrowthBook ${res.status}: ${txt.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    const items = data.features ?? [];
+    flags.push(...items);
+    hasMore = data.hasMore === true;
+    offset  = data.nextOffset ?? (offset + items.length);
+    if (!items.length) break;
+  }
+  return flags;
+}
+
+// ── GrowthBook condition → JsonLogic ─────────────────────────────────────────
+// GB conditions use MongoDB-style operators: $eq $ne $in $nin $gt $gte $lt $lte
+// $exists $type $regex $all $elemMatch $size $not $and $or $nor
+// We translate the common ones to JsonLogic for Mixpanel runtime_evaluation_rule.
+
+function gbConditionToJsonLogic(cond) {
+  if (!cond || typeof cond !== 'object') return null;
+
+  // Top-level $and / $or / $nor
+  if (cond.$and) return { and: cond.$and.map(gbConditionToJsonLogic).filter(Boolean) };
+  if (cond.$or)  return { or:  cond.$or.map(gbConditionToJsonLogic).filter(Boolean) };
+  if (cond.$nor) return { '!': { or: cond.$nor.map(gbConditionToJsonLogic).filter(Boolean) } };
+  if (cond.$not) return { '!': gbConditionToJsonLogic(cond.$not) };
+
+  // Attribute-level conditions: { attr: value } or { attr: { $op: val } }
+  const parts = [];
+  for (const [attr, val] of Object.entries(cond)) {
+    if (attr.startsWith('$')) continue; // skip already handled top-level ops
+    if (val === null || typeof val !== 'object') {
+      // Simple equality: { attr: "value" }
+      parts.push({ '==': [{ var: attr }, val] });
+    } else {
+      // Operator object: { attr: { $in: [...], $gt: x, ... } }
+      for (const [op, opVal] of Object.entries(val)) {
+        switch (op) {
+          case '$eq':      parts.push({ '==':  [{ var: attr }, opVal] }); break;
+          case '$ne':      parts.push({ '!=':  [{ var: attr }, opVal] }); break;
+          case '$gt':      parts.push({ '>':   [{ var: attr }, opVal] }); break;
+          case '$gte':     parts.push({ '>=':  [{ var: attr }, opVal] }); break;
+          case '$lt':      parts.push({ '<':   [{ var: attr }, opVal] }); break;
+          case '$lte':     parts.push({ '<=':  [{ var: attr }, opVal] }); break;
+          case '$in':      parts.push({ in:    [{ var: attr }, opVal] }); break;
+          case '$nin':     parts.push({ '!':   { in: [{ var: attr }, opVal] } }); break;
+          case '$regex':   parts.push({ regex: [{ var: attr }, opVal] }); break;
+          case '$exists':
+            parts.push(opVal
+              ? { '!=': [{ var: attr }, null] }
+              : { '==': [{ var: attr }, null] });
+            break;
+          // $all, $elemMatch, $size, $type — not translatable
+          default: break;
+        }
+      }
+    }
+  }
+  if (!parts.length) return null;
+  return parts.length === 1 ? parts[0] : { and: parts };
+}
+
+// Build human-readable definition summary from GB condition
+function gbConditionToDefinition(cond) {
+  if (!cond || typeof cond !== 'object') return {};
+  const def = {};
+  for (const [attr, val] of Object.entries(cond)) {
+    if (attr.startsWith('$')) continue;
+    if (typeof val !== 'object' || val === null) def[attr] = val;
+    else if (val.$eq !== undefined) def[attr] = val.$eq;
+    else if (val.$in !== undefined) def[attr] = val.$in;
+    else def[attr] = val;
+  }
+  return def;
+}
+
+// Parse a condition string safely
+function parseCondition(str) {
+  if (!str || str === '{}' || str === '') return null;
+  try { return JSON.parse(str); } catch { return null; }
+}
+
+// ── Flag helpers ──────────────────────────────────────────────────────────────
+// Get the active rules for the selected environment from the published revision
+function gbActiveRules(flag, env) {
+  // The v1 Management API (GET /api/v1/features) nests per-environment config
+  // under `environments[env].rules`. (`environmentSettings` is GrowthBook's
+  // INTERNAL model name, exposed only to custom hooks — not the REST response.)
+  // We read `environments` first and fall back to `environmentSettings` so the
+  // tool works regardless of API surface/version.
+  const envSettings = flag.environments?.[env] ?? flag.environmentSettings?.[env];
+  if (!envSettings) return [];
+  return envSettings.rules ?? [];
+}
+
+function gbFlagStatus(flag, env) {
+  if (flag.archived) return 'archived';
+  const envEnabled = (flag.environments?.[env] ?? flag.environmentSettings?.[env])?.enabled;
+  return envEnabled ? 'enabled' : 'disabled';
+}
+
+// Saved-group targeting on a rule. The v1 REST API exposes this as
+// `savedGroupTargeting` ([{ matchType, savedGroups:[ids] }, ...]); older/internal
+// shapes used a flat `savedGroups` array. Return a normalised non-empty array
+// when either is present so detection (length > 0) is reliable.
+function gbSavedGroups(rule) {
+  if (Array.isArray(rule.savedGroupTargeting) && rule.savedGroupTargeting.length) {
+    return rule.savedGroupTargeting;
+  }
+  if (Array.isArray(rule.savedGroups) && rule.savedGroups.length) {
+    return rule.savedGroups;
+  }
+  return [];
+}
+
+function gbRuleTypeSummary(flag, env) {
+  const rules = gbActiveRules(flag, env);
+  if (!rules.length) return 'plain';
+  const types = new Set(rules.map(r => r.type));
+  if (types.has('experiment') || types.has('experiment-ref')) return 'experiment';
+  if (types.has('rollout')) return 'rollout';
+  if (types.has('force')) return 'force';
+  return 'plain';
+}
+
+function gbRisks(flag, env) {
+  const risks = [];
+  const rules = gbActiveRules(flag, env);
+
+  // Saved groups — cannot be auto-translated
+  const savedGroupRules = rules.filter(r => gbSavedGroups(r).length > 0);
+  if (savedGroupRules.length > 0) {
+    risks.push({ level: 'high', label: 'saved groups',
+      detail: `${savedGroupRules.length} rule(s) use savedGroup targeting — recreate as Mixpanel cohorts manually.` });
+  }
+
+  // Experiment-ref rules — can't auto-create linked experiments
+  const expRules = rules.filter(r => r.type === 'experiment-ref' || r.type === 'experiment');
+  if (expRules.length > 0) {
+    risks.push({ level: 'medium', label: 'experiment rules',
+      detail: `${expRules.length} experiment rule(s) — link to Mixpanel experiments manually after import.` });
+  }
+
+  // Prerequisites
+  if ((flag.prerequisites ?? []).length > 0) {
+    risks.push({ level: 'medium', label: `${flag.prerequisites.length} prereq(s)`,
+      detail: `Has ${flag.prerequisites.length} prerequisite flag(s) — dependency chain dropped on import.` });
+  }
+
+  // Non-boolean value type (value lost)
+  if (flag.valueType && flag.valueType !== 'boolean') {
+    risks.push({ level: 'medium', label: `${flag.valueType} values`,
+      detail: `${flag.valueType} variation values preserved in descriptions only — Mixpanel variants use string keys.` });
+  }
+
+  // Translatable conditions present
+  const condRules = rules.filter(r => {
+    const c = parseCondition(r.condition);
+    return c && Object.keys(c).length > 0;
+  });
+  if (condRules.length > 0 && !savedGroupRules.length) {
+    risks.push({ level: 'info', label: 'conditions translated',
+      detail: `${condRules.length} rule condition(s) translated to JsonLogic runtime_evaluation_rule.` });
+  }
+
+  return risks;
+}
+
+// ── Variant name builder ──────────────────────────────────────────────────────
+// GrowthBook: defaultValue = control. Experiment rule variations[] = treatments.
+// For boolean: defaultValue=true → treatment, false → control (or vice versa).
+// For multivariate: defaultValue = control, each unique non-default value = treatment.
+function gbBuildVariants(flag, env) {
+  const defaultVal  = flag.defaultValue ?? 'false';
+  const rules       = gbActiveRules(flag, env);
+  const letters     = 'abcdefghijklmnopqrstuvwxyz';
+
+  // Collect all non-default values from force/experiment rules
+  const treatmentValues = [];
+  const seen = new Set([String(defaultVal)]);
+
+  for (const rule of rules) {
+    // Force rule with a single value
+    if (rule.type === 'force' && rule.value !== undefined) {
+      const sv = String(rule.value);
+      if (!seen.has(sv)) { treatmentValues.push(sv); seen.add(sv); }
+    }
+    // Experiment rule with variations array
+    if ((rule.type === 'experiment' || rule.type === 'experiment-ref') && Array.isArray(rule.variations)) {
+      for (const variant of rule.variations) {
+        const sv = String(variant.value ?? variant);
+        if (!seen.has(sv)) { treatmentValues.push(sv); seen.add(sv); }
+      }
+    }
+  }
+
+  // Boolean with no rules: one treatment (the non-default value)
+  if (flag.valueType === 'boolean' && !treatmentValues.length) {
+    const treatVal = defaultVal === 'true' ? 'false' : 'true';
+    treatmentValues.push(treatVal);
+  }
+
+  // Build Mixpanel variant array
+  return treatmentValues.map((val, i) => ({
+    mpKey: treatmentValues.length === 1 ? 'treatment' : `treatment_${letters[i] ?? i}`,
+    gbValue: val,
+    name: val,
+  }));
+}
+
+// ── Rollout builder ───────────────────────────────────────────────────────────
+function gbBuildRollout(flag, env, variants) {
+  const rules = gbActiveRules(flag, env);
+  const rollout = [];
+  const treatmentKey = variants[0]?.mpKey || 'treatment';
+  const allTreatmentSplit = Object.fromEntries(
+    variants.map((vr, i) => {
+      const even = parseFloat((1 / variants.length).toFixed(6));
+      return [vr.mpKey, even];
+    })
+  );
+
+  for (const rule of rules) {
+    if (!rule.enabled && rule.enabled !== undefined) continue;
+    const condObj = parseCondition(rule.condition);
+    const jsonLogicRule = condObj ? gbConditionToJsonLogic(condObj) : null;
+    const definition    = condObj ? gbConditionToDefinition(condObj) : {};
+    const hasSavedGroups = gbSavedGroups(rule).length > 0;
+
+    if (rule.type === 'force') {
+      // Force rule — 100% rollout to the matching treatment
+      const forceVal = String(rule.value ?? '');
+      const matchingVariant = variants.find(vr => vr.gbValue === forceVal);
+      const variantSplits = matchingVariant
+        ? { [matchingVariant.mpKey]: 1.0 }
+        : { [treatmentKey]: 1.0 };
+      rollout.push({
+        name: rule.description || null,
+        cohort_definition: {},
+        runtime_evaluation_definition: definition,
+        runtime_evaluation_rule: hasSavedGroups ? null : jsonLogicRule,
+        runtime_event_rule: null,
+        cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
+        rollout_percentage: 1,
+        variant_override: null,
+        variant_splits: variantSplits,
+        _meta: { type: 'force', hasSavedGroups, originalCondition: rule.condition || '{}' },
+      });
+    } else if (rule.type === 'rollout') {
+      // Percentage rollout
+      const pct = parseFloat(rule.coverage ?? 1);
+      rollout.push({
+        name: rule.description || 'Rollout',
+        cohort_definition: {},
+        runtime_evaluation_definition: definition,
+        runtime_evaluation_rule: hasSavedGroups ? null : jsonLogicRule,
+        runtime_event_rule: null,
+        cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
+        rollout_percentage: pct,
+        variant_override: null,
+        variant_splits: allTreatmentSplit,
+        _meta: { type: 'rollout', hasSavedGroups, originalCondition: rule.condition || '{}' },
+      });
+    } else if (rule.type === 'experiment' || rule.type === 'experiment-ref') {
+      // Experiment rule — translate weights if available
+      const expVariations = rule.variations ?? [];
+      const weights = rule.weights ?? expVariations.map(() => 1 / (expVariations.length || 1));
+      const variantSplits = {};
+      expVariations.forEach((expVar, i) => {
+        const gbVal = String(expVar.value ?? expVar);
+        const matchV = variants.find(vr => vr.gbValue === gbVal);
+        if (matchV) variantSplits[matchV.mpKey] = parseFloat((weights[i] ?? 0).toFixed(6));
+      });
+      if (!Object.keys(variantSplits).length) variantSplits[treatmentKey] = 1.0;
+      rollout.push({
+        name: rule.name || rule.trackingKey || 'Experiment',
+        cohort_definition: {},
+        runtime_evaluation_definition: definition,
+        runtime_evaluation_rule: hasSavedGroups ? null : jsonLogicRule,
+        runtime_event_rule: null,
+        cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
+        rollout_percentage: parseFloat(rule.coverage ?? 1),
+        variant_override: null,
+        variant_splits: variantSplits,
+        _meta: { type: 'experiment-ref', experimentId: rule.experimentId || null, hasSavedGroups, originalCondition: rule.condition || '{}' },
+      });
+    }
+  }
+
+  // Default fallthrough rule
+  if (!rollout.length) {
+    rollout.push({
+      name: null, cohort_definition: {}, runtime_evaluation_definition: {},
+      runtime_evaluation_rule: null, runtime_event_rule: null,
+      cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
+      rollout_percentage: 0, variant_override: null,
+      variant_splits: { [treatmentKey]: 1.0 },
+      _meta: { type: 'default' },
+    });
+  }
+
+  return rollout;
+}
+
+// ── Payload builder ───────────────────────────────────────────────────────────
+function buildMpFlagPayload(flag, cfg) {
+  const sdk           = flagSdks[flag.id] || 'javascript';
+  const servingMethod = SDKS.find(s => s.id === sdk)?.serving || 'client';
+  const variants      = gbBuildVariants(flag, cfg.gbEnv);
+  const variantList   = ['control', ...variants.map(vr => vr.mpKey)];
+  const even          = parseFloat((1 / variantList.length).toFixed(6));
+  const defaultVal    = flag.defaultValue ?? 'false';
+
+  const parseGbValue = v => { try { return JSON.parse(v); } catch { return v; } };
+  const mpVariants = variantList.map((k, i) => ({
+    key: k, value: k === 'control' ? parseGbValue(defaultVal) : parseGbValue(variants[i-1]?.gbValue ?? k),
+    is_control: k === 'control',
+    split: even, is_sticky: false,
+    description: k === 'control'
+      ? `Control — Migrated from GrowthBook. Default value: ${defaultVal}`
+      : `Treatment — Migrated from GrowthBook. GrowthBook value: ${variants[i-1]?.gbValue ?? k}`,
+  }));
+
+  const rolloutEntries = gbBuildRollout(flag, cfg.gbEnv, variants);
+
+  return {
+    name: flag.id, // GB has no separate display name in v1
+    key:  flag.id,
+    description: flag.description || null,
+    tags: Array.isArray(flag.tags) ? flag.tags.map(String) : [],
+    context: 'user',
+    status: gbFlagStatus(flag, cfg.gbEnv) === 'enabled' ? 'enabled' : 'disabled',
+    serving_method: servingMethod,
+    experiment_id: null,
+    ruleset: {
+      variants: mpVariants,
+      rollout: rolloutEntries.map(({ _meta, ...entry }) => entry),
+    },
+    _gbRolloutMeta: rolloutEntries,
+  };
+}
+
+// ── Table render ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const cfg = getCfg();
+  const q = v('search').toLowerCase(), sf = v('f-status'), tf = v('f-type'), rf = v('f-rule'), riskF = v('f-risk');
+  const vis = allFlags.filter(f => {
+    const mq = !q || f.id.toLowerCase().includes(q) || (f.description||'').toLowerCase().includes(q);
+    if (!mq) return false;
+    if (sf && gbFlagStatus(f, cfg.gbEnv) !== sf) return false;
+    if (tf && f.valueType !== tf) return false;
+    if (rf) {
+      const rt = gbRuleTypeSummary(f, cfg.gbEnv);
+      if (rf === 'experiment' && rt !== 'experiment') return false;
+      if (rf === 'rollout'    && rt !== 'rollout')    return false;
+      if (rf === 'force'      && rt !== 'force')      return false;
+      if (rf === 'plain'      && rt !== 'plain')      return false;
+    }
+    if (riskF) {
+      const risks = gbRisks(f, cfg.gbEnv);
+      if (riskF === 'high'   && !risks.some(r => r.level === 'high'))   return false;
+      if (riskF === 'medium' && !risks.some(r => r.level === 'medium')) return false;
+      if (riskF === 'clean'  && risks.length > 0)                       return false;
+    }
+    return true;
+  });
+
+  const tbody = el('flag-tbody');
+  tbody.innerHTML = vis.map(f => {
+    const sel = selectedKeys.has(f.id);
+    const currentSdk = flagSdks[f.id] || 'javascript';
+    const sdkOpts    = SDKS.map(s => `<option value="${s.id}" ${currentSdk===s.id?'selected':''}>${s.label}</option>`).join('');
+    const modes      = getEvalModes(currentSdk);
+    const currentMode= getEvalMode(f.id, currentSdk);
+    const modeOpts   = modes.map(m => `<option value="${m.id}" ${m.id===currentMode?'selected':''}>${m.label}</option>`).join('');
+    const rt         = gbRuleTypeSummary(f, cfg.gbEnv);
+    const risks      = gbRisks(f, cfg.gbEnv);
+    const riskHtml   = risks.length
+      ? `<div class="risk-cell">${risks.map(r => `<span class="risk-badge risk-${r.level}" title="${esc(r.detail)}">${esc(r.label)}</span>`).join('')}</div>`
+      : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+    return `<tr class="${sel?'selected':''}" data-key="${f.id}">
+      <td><input type="checkbox" ${sel?'checked':''} onchange="toggleFlag('${f.id}',this.checked)"/></td>
+      <td class="mono">${esc(f.id)}</td>
+      <td style="font-size:12px;color:var(--text-secondary);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.description||'—')}</td>
+      <td>${statusPill(f, cfg.gbEnv)}</td>
+      <td>${valueTypePill(f.valueType)}</td>
+      <td>${ruleTypePill(rt)}</td>
+      <td>${riskHtml}</td>
+      <td><select class="sdk-select" onchange="setSdk('${f.id}',this.value)">${sdkOpts}</select></td>
+      <td><select class="sdk-select" id="mode-sel-${f.id}" onchange="setEvalModeFromTable('${f.id}',this.value)">${modeOpts}</select></td>
+    </tr>`;
+  }).join('');
+
+  el('empty-msg').style.display = vis.length === 0 ? '' : 'none';
+  el('count-badge').textContent  = `${vis.length} flags`;
+  el('sel-summary').textContent  = `${selectedKeys.size} of ${allFlags.length} flags selected`;
+}
+
+function toggleFlag(id, checked) {
+  if (checked) selectedKeys.add(id); else selectedKeys.delete(id);
+  renderTable();
+}
+function toggleAll() {
+  const cfg = getCfg();
+  const q = v('search').toLowerCase(), sf = v('f-status'), tf = v('f-type'), rf = v('f-rule'), riskF = v('f-risk');
+  const vis = allFlags.filter(f => {
+    const mq = !q || f.id.toLowerCase().includes(q) || (f.description||'').toLowerCase().includes(q);
+    if (!mq || (sf && gbFlagStatus(f,cfg.gbEnv)!==sf) || (tf && f.valueType!==tf)) return false;
+    if (rf && gbRuleTypeSummary(f,cfg.gbEnv)!==rf) return false;
+    if (riskF) {
+      const risks = gbRisks(f,cfg.gbEnv);
+      if (riskF==='high' && !risks.some(r=>r.level==='high')) return false;
+      if (riskF==='medium' && !risks.some(r=>r.level==='medium')) return false;
+      if (riskF==='clean' && risks.length>0) return false;
+    }
+    return true;
+  });
+  const checked = el('chk-all').checked;
+  vis.forEach(f => checked ? selectedKeys.add(f.id) : selectedKeys.delete(f.id));
+  renderTable();
+}
+function setSdk(id, sdk) {
+  flagSdks[id] = sdk;
+  const modes = getEvalModes(sdk);
+  flagEvalModes[id] = modes[0].id;
+  const sel = el(`mode-sel-${id}`);
+  if (sel) sel.innerHTML = modes.map(m => `<option value="${m.id}" ${m.id===modes[0].id?'selected':''}>${m.label}</option>`).join('');
+}
+function setEvalModeFromTable(id, mode) { flagEvalModes[id] = mode; }
+
+// ── Report render ─────────────────────────────────────────────────────────────
+function renderReport() {
+  const cfg = getCfg();
+  const expC  = allFlags.filter(f => gbRuleTypeSummary(f,cfg.gbEnv)==='experiment').length;
+  const highC = allFlags.filter(f => gbRisks(f,cfg.gbEnv).some(r=>r.level==='high')).length;
+  el('report-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-n">${allFlags.length}</div><div class="stat-l">total flags</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:var(--purple-06)">${expC}</div><div class="stat-l">experiment flags</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:var(--lava-07)">${highC}</div><div class="stat-l">high risk flags</div></div>
+    <div class="stat-card"><div class="stat-n" style="color:var(--grass-06)">${selectedKeys.size}</div><div class="stat-l">selected</div></div>`;
+  const tbody = el('report-tbody');
+  tbody.innerHTML = allFlags.map(f => {
+    const rt    = gbRuleTypeSummary(f, cfg.gbEnv);
+    const risks = gbRisks(f, cfg.gbEnv);
+    const sdk   = SDKS.find(s => s.id===(flagSdks[f.id]||'javascript'))?.label||'JavaScript';
+    const riskHtml = risks.map(r=>`<span class="risk-badge risk-${r.level}">${esc(r.label)}</span>`).join(' ') || '—';
+    return `<tr>
+      <td class="mono">${esc(f.id)}</td>
+      <td>${statusPill(f,cfg.gbEnv)}</td>
+      <td>${valueTypePill(f.valueType)}</td>
+      <td>${ruleTypePill(rt)}</td>
+      <td>${riskHtml}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(String(f.defaultValue??''))}</td>
+      <td style="font-size:12px">${sdk}</td>
+      <td>${selectedKeys.has(f.id)?'<span class="pill pill-green">✓ Selected</span>':'<span class="pill pill-neutral">Skipped</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Eval modes (shared with LD tool) ──────────────────────────────────────────
+const EVAL_MODES = {
+  javascript: [
+    { id: 'networkOnly',                    label: 'Network only (default)' },
+    { id: 'networkFirst',                   label: 'Network first + persistence' },
+    { id: 'persistenceUntilNetworkSuccess', label: 'Persistence until network success' },
+  ],
+  nodejs:  [{ id: 'local', label: 'Local evaluation (recommended)' }, { id: 'remote', label: 'Remote evaluation' }],
+  python:  [{ id: 'local', label: 'Local evaluation (recommended)' }, { id: 'remote', label: 'Remote evaluation' }],
+  swift:   [{ id: 'networkOnly', label: 'Network only' }, { id: 'networkFirst', label: 'Network first + persistence' }, { id: 'persistenceUntilNetworkSuccess', label: 'Persistence until network success' }],
+  android: [{ id: 'networkOnly', label: 'Network only' }, { id: 'networkFirst', label: 'Network first + persistence' }, { id: 'persistenceUntilNetworkSuccess', label: 'Persistence until network success' }],
+  reactnative: [{ id: 'async', label: 'Async' }, { id: 'sync', label: 'Sync' }],
+  flutter: [{ id: 'networkOnly', label: 'Network only' }, { id: 'networkFirst', label: 'Network first + persistence' }, { id: 'persistenceUntilNetworkSuccess', label: 'Persistence until network success' }],
+  go:   [{ id: 'local', label: 'Local evaluation' }],
+  ruby: [{ id: 'local', label: 'Local evaluation' }],
+  java: [{ id: 'local', label: 'Local evaluation' }],
+};
+function getEvalModes(sdk) { return EVAL_MODES[sdk] ?? [{ id: 'default', label: 'Default' }]; }
+function getEvalMode(id, sdk) { return flagEvalModes[id] || getEvalModes(sdk)[0].id; }
+
+// ── Code samples ──────────────────────────────────────────────────────────────
+function renderCodeBlocks() {
+  const selected = allFlags.filter(f => selectedKeys.has(f.id));
+  el('code-count').textContent = selected.length;
+  if (!selected.length) { el('code-blocks').innerHTML = ''; el('code-empty').style.display=''; return; }
+  el('code-empty').style.display = 'none';
+  const token = v('mp-token') || 'YOUR_PROJECT_TOKEN';
+  el('code-blocks').innerHTML = selected.map(f => {
+    const sdk   = flagSdks[f.id] || 'javascript';
+    const mode  = getEvalMode(f.id, sdk);
+    const variants = gbBuildVariants(f, getCfg().gbEnv);
+    const variantList = ['control', ...variants.map(vr => vr.mpKey)];
+    const sdkLabel = SDKS.find(s => s.id===sdk)?.label || sdk;
+    const snippets = generateSnippets(sdk, mode, f.id, variantList, token);
+    const modeOpts = getEvalModes(sdk).map(m =>
+      `<option value="${m.id}" ${m.id===mode?'selected':''}>${m.label}</option>`).join('');
+    return `<div class="code-flag-block" id="block-${f.id}">
+      <div class="code-flag-header">
+        <span class="flag-key">${esc(f.id)}</span>
+        ${valueTypePill(f.valueType)} ${ruleTypePill(gbRuleTypeSummary(f, getCfg().gbEnv))}
+        <span style="font-size:12px;color:var(--text-muted)">${sdkLabel}</span>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+          <label style="font-size:11px;color:var(--text-muted)">Eval mode:</label>
+          <select class="sdk-select" style="max-width:220px" onchange="setEvalModeCode('${f.id}','${sdk}',this.value)">${modeOpts}</select>
+          <button class="btn btn-sm btn-icon" onclick="copyAllSnippets('${f.id}')">⎘ All</button>
+        </div>
+      </div>
+      <div style="border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;background:var(--gray-02)">
+          <span style="font-size:12px;font-weight:600;color:var(--text-secondary)">⚙ 1 · SDK init</span>
+          <button class="btn btn-sm btn-icon" onclick="copyCode('${f.id}-init')">⎘</button>
+        </div>
+        <pre class="code-pre" id="${f.id}-init" style="border-radius:0">${snippets.init}</pre>
+      </div>
+      <div style="border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;background:var(--gray-02)">
+          <span style="font-size:12px;font-weight:600;color:var(--text-secondary)">⚑ 2 · Flag retrieval</span>
+          <button class="btn btn-sm btn-icon" onclick="copyCode('${f.id}-eval')">⎘</button>
+        </div>
+        <pre class="code-pre" id="${f.id}-eval" style="border-radius:0">${snippets.eval}</pre>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;background:var(--gray-02)">
+          <span style="font-size:12px;font-weight:600;color:var(--text-secondary)">◎ 3 · Exposure tracking</span>
+          <button class="btn btn-sm btn-icon" onclick="copyCode('${f.id}-exposure')">⎘</button>
+        </div>
+        <pre class="code-pre" id="${f.id}-exposure" style="border-radius:0">${snippets.exposure}</pre>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setEvalModeCode(id, sdk, mode) {
+  flagEvalModes[id] = mode;
+  const token = v('mp-token') || 'YOUR_PROJECT_TOKEN';
+  const f = allFlags.find(x => x.id === id); if (!f) return;
+  const variants = gbBuildVariants(f, getCfg().gbEnv);
+  const variantList = ['control', ...variants.map(vr => vr.mpKey)];
+  const snippets = generateSnippets(sdk, mode, id, variantList, token);
+  ['init','eval','exposure'].forEach(p => { const pre = el(`${id}-${p}`); if (pre) pre.innerHTML = snippets[p]; });
+}
+
+function copyCode(elId) { const pre = el(elId); if (pre) navigator.clipboard.writeText(pre.innerText); }
+function copyAllSnippets(id) {
+  const text = ['init','eval','exposure'].map(p => { const pre = el(`${id}-${p}`); return pre ? pre.innerText : ''; }).join('\n\n// ─────────────\n\n');
+  navigator.clipboard.writeText(text);
+}
+
+function generateSnippets(sdk, mode, flagKey, variantList, token) {
+  const fallback = 'control';
+  const region = v('mp-region') || 'us';
+  const serverApiHost = { us:'https://api.mixpanel.com', eu:'https://api-eu.mixpanel.com', in:'https://api-in.mixpanel.com' }[region];
+  const switchCases = variantList.map(k => `  <span class="kw">case</span> <span class="str">'${k}'</span>:\n    <span class="cm">// ${k} experience</span>\n    <span class="kw">break</span>;`).join('\n');
+  const treatments = variantList.filter(k => k !== 'control');
+  const pythonChain = treatments.map((k,i) => `<span class="kw">${i===0?'if':'elif'}</span> variant == <span class="str">"${k}"</span>:\n    <span class="cm"># ${k} experience</span>`).join('\n') + `\n<span class="kw">else</span>:\n    <span class="cm"># control experience</span>`;
+
+  if (sdk === 'javascript') {
+    const persistBlock = mode==='networkOnly'?'': mode==='networkFirst'
+      ?`      persistence: { variantLookupPolicy: <span class="str">'networkFirst'</span>, persistenceTtlMs: <span class="num">86400000</span> }`
+      :`      persistence: { variantLookupPolicy: <span class="str">'persistenceUntilNetworkSuccess'</span>, persistenceTtlMs: <span class="num">86400000</span> }`;
+    const isSync = mode === 'persistenceUntilNetworkSuccess';
+    return {
+      init: `<span class="cm">// npm install mixpanel-browser</span>\n<span class="kw">import</span> mixpanel <span class="kw">from</span> <span class="str">'mixpanel-browser'</span>;\nmixpanel.<span class="fn">init</span>(<span class="str">'${token}'</span>, { flags: { enabled: <span class="kw">true</span>${persistBlock?',\n    '+persistBlock:''} } });`,
+      eval: `<span class="kw">const</span> variant = ${isSync?'':'<span class="kw">await</span> '}mixpanel.flags.<span class="fn">${isSync?'get_variant_value_sync':'get_variant_value'}</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>);\n<span class="kw">switch</span> (variant) {\n${switchCases}\n  <span class="kw">default</span>: <span class="cm">// control fallback</span>\n}`,
+      exposure: `<span class="cm">// Exposure is auto-tracked. To suppress and fire manually:</span>\n<span class="kw">const</span> variant = ${isSync?'':'<span class="kw">await</span> '}mixpanel.flags.<span class="fn">${isSync?'get_variant_value_sync':'get_variant_value'}</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>, <span class="kw">false</span>);\nmixpanel.flags.<span class="fn">trackExposureEvent</span>(<span class="str">'${flagKey}'</span>, variant);`,
+    };
+  }
+  if (sdk === 'nodejs') {
+    const isLocal = mode === 'local';
+    const ns = isLocal ? 'local_flags' : 'remote_flags';
+    return {
+      init: isLocal
+        ? `<span class="cm">// npm install mixpanel</span>\n<span class="kw">const</span> mp = Mixpanel.<span class="fn">init</span>(<span class="str">'${token}'</span>, { local_flags_config: { enable_polling: <span class="kw">true</span> } });\n<span class="kw">await</span> mp.local_flags.<span class="fn">startPollingForDefinitions</span>();`
+        : `<span class="cm">// npm install mixpanel</span>\n<span class="kw">const</span> mp = Mixpanel.<span class="fn">init</span>(<span class="str">'${token}'</span>, { remote_flags_config: { api_host: <span class="str">'${serverApiHost.replace('https://','')}'</span> } });`,
+      eval: `<span class="kw">const</span> variant = ${isLocal?'':'<span class="kw">await</span> '}mp.${ns}.<span class="fn">getVariantValue</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>, { distinct_id: userId });\n<span class="kw">switch</span> (variant) {\n${switchCases}\n  <span class="kw">default</span>: <span class="cm">// control</span>\n}`,
+      exposure: `<span class="kw">const</span> variant = ${isLocal?'':'<span class="kw">await</span> '}mp.${ns}.<span class="fn">getVariantValue</span>(<span class="str">'${flagKey}'</span>, <span class="str">'${fallback}'</span>, { distinct_id: userId }, <span class="kw">false</span>);\nmp.${ns}.<span class="fn">trackExposureEvent</span>(<span class="str">'${flagKey}'</span>, variant, { distinct_id: userId });`,
+    };
+  }
+  if (sdk === 'python') {
+    const isLocal = mode === 'local';
+    const ns = isLocal ? 'local_flags' : 'remote_flags';
+    return {
+      init: isLocal
+        ? `<span class="cm"># pip install mixpanel</span>\nmp = mixpanel.<span class="fn">Mixpanel</span>(<span class="str">"${token}"</span>, local_flags_config={<span class="str">"enable_polling"</span>: <span class="kw">True</span>})\nmp.local_flags.<span class="fn">start_polling_for_definitions</span>()`
+        : `<span class="cm"># pip install mixpanel</span>\nmp = mixpanel.<span class="fn">Mixpanel</span>(<span class="str">"${token}"</span>, remote_flags_config={<span class="str">"api_host"</span>: <span class="str">"${serverApiHost}"</span>})`,
+      eval: `variant = mp.${ns}.<span class="fn">get_variant_value</span>(<span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>, distinct_id=user_id)\n${pythonChain}`,
+      exposure: `variant = mp.${ns}.<span class="fn">get_variant_value</span>(<span class="str">"${flagKey}"</span>, <span class="str">"${fallback}"</span>, distinct_id=user_id, track_exposure=<span class="kw">False</span>)\nmp.${ns}.<span class="fn">track_exposure_event</span>(<span class="str">"${flagKey}"</span>, variant, {<span class="str">"distinct_id"</span>: user_id})`,
+    };
+  }
+  return {
+    init: `<span class="cm">// Initialize Mixpanel with token: ${token}</span>`,
+    eval: `<span class="cm">// Evaluate flag: ${flagKey} | fallback: ${fallback}</span>`,
+    exposure: `<span class="cm">// Track exposure for: ${flagKey}</span>`,
+  };
+}
+
+// ── Import ────────────────────────────────────────────────────────────────────
+async function runImport(dryRun=false) {
+  const cfg = getCfg();
+  importAborted = false;
+  if (!dryRun) failedFlags = [];
+  el('btn-run').disabled = true;
+  el('btn-preview').disabled = true;
+  el('btn-abort').style.display = dryRun ? 'none' : '';
+  el('btn-abort').disabled = false;
+  el('btn-abort').textContent = 'Abort';
+  el('btn-retry').style.display = 'none';
+  el('btn-copy-log').style.display = 'none';
+  el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
+  const selected = allFlags.filter(f => selectedKeys.has(f.id));
+  let flagOk = 0, skip = 0, fail = 0;
+  el('s-total').textContent = selected.length;
+  el('s-flag').textContent = '0'; el('s-fail').textContent = '0'; el('s-skip').textContent = '0';
+  el('import-log').innerHTML = '';
+  el('progress-bar').style.width = '0%';
+  const mpDomain = cfg.mpRegion === 'us' ? 'mixpanel.com' : `${cfg.mpRegion}.mixpanel.com`;
+
+  log('ℹ Reminder: translated conditions become Mixpanel runtime rules. Mixpanel LOCAL evaluation only supports a single exact-match condition — multi-condition rules always evaluate to TRUE there. Use REMOTE evaluation for any flag that relies on targeting.', 'warn');
+
+  const keyErrors = [];
+  for (const flag of selected) {
+    const err = validateFlagKey(flag.id);
+    if (err) keyErrors.push(`${flag.id}: ${err}`);
+  }
+  if (keyErrors.length) {
+    for (const e of keyErrors) log(`✗ Key validation failed — ${e}`, 'err');
+    log('Fix the above flag keys in GrowthBook before importing.', 'err');
+    el('btn-run').disabled = false; el('btn-preview').disabled = false;
+    el('btn-abort').style.display = 'none';
+    return;
+  }
+
+  for (let i = 0; i < selected.length; i++) {
+    if (importAborted) { log('Import aborted.', 'warn'); break; }
+    const flag = selected[i];
+    log(`→ ${flag.id}  (${flag.valueType}, ${gbRuleTypeSummary(flag, cfg.gbEnv)})`, 'info');
+
+    const risks = gbRisks(flag, cfg.gbEnv);
+    for (const r of risks) {
+      log(`   ${r.level==='high'?'⚠':r.level==='medium'?'~':'ℹ'} ${r.detail}`, r.level==='high'?'err':'warn');
+    }
+
+    const payload = buildMpFlagPayload(flag, cfg);
+    const meta = payload._gbRolloutMeta ?? [];
+    delete payload._gbRolloutMeta;
+
+    for (const entry of meta) {
+      const m = entry._meta ?? {};
+      if (m.type === 'force' || m.type === 'rollout') {
+        if (entry.runtime_evaluation_rule) log(`   ✓ ${m.type} rule translated → ${JSON.stringify(entry.runtime_evaluation_rule)}`, 'ok');
+        if (m.hasSavedGroups) log(`   ~ savedGroup condition dropped — recreate as Mixpanel cohort manually`, 'warn');
+      }
+      if (m.type === 'experiment-ref') log(`   ~ Experiment rule (${m.experimentId||'unknown'}) — link to Mixpanel experiment manually`, 'warn');
+    }
+
+    if (dryRun) {
+      const rs = payload.ruleset;
+      log(`   [PREVIEW] ${rs.variants.length} variant(s), ${rs.rollout.length} rollout rule(s)${risks.length ? `, ${risks.filter(r=>r.level==='high').length} high-risk warning(s)` : ''}`, 'warn');
+      flagOk++;
+    } else {
+      try {
+        const res = await mpFetch(`https://${mpDomain}/api/app/projects/${cfg.mpProject}/workspaces/${cfg.mpWorkspace}/feature-flags`, {
+          method: 'POST', headers: mpAuthHeaders(), body: JSON.stringify(payload),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { log(`   ✓ Flag created`, 'ok'); flagOk++; }
+        else if (res.status === 409) { log(`   ⏭ Skipped (already exists)`, 'warn'); skip++; }
+        else {
+          const detail = typeof body?.error === 'object' ? JSON.stringify(body.error) : (body?.error ?? body?.message ?? 'HTTP ' + res.status);
+          log(`   ✗ Failed: ${detail}`, 'err'); fail++;
+          failedFlags.push(flag);
+        }
+      } catch(err) {
+        log(`   ✗ Network error: ${err.message}`, 'err'); fail++;
+        failedFlags.push(flag);
+      }
+      await sleep(cfg.delayMs);
+    }
+    el('s-flag').textContent = flagOk; el('s-fail').textContent = fail; el('s-skip').textContent = skip;
+    el('progress-bar').style.width = `${Math.round(((i+1)/selected.length)*100)}%`;
+  }
+
+  const summary = `Done — ${flagOk} created, ${skip} skipped${fail ? `, ${fail} failed` : ''}${importAborted ? ' (aborted)' : ''}`;
+  log(summary, fail ? 'err' : 'ok');
+  el('btn-run').disabled = false; el('btn-preview').disabled = false;
+  el('btn-abort').style.display = 'none';
+  el('btn-copy-log').style.display = '';
+  if (failedFlags.length) el('btn-retry').style.display = '';
+  el('import-mode-hint').textContent = dryRun ? 'Preview complete — click Import to create flags.' : (fail ? `${fail} flag(s) failed — click Retry failed or check the log.` : 'Import complete.');
+}
+// ── Export helpers ────────────────────────────────────────────────────────────
+function exportCSV() {
+  const cfg = getCfg();
+  const rows = [['Key','Status','Value type','Rule types','Risks','Default value','SDK','Selected']];
+  allFlags.forEach(f => {
+    const risks = gbRisks(f,cfg.gbEnv).map(r=>r.label).join(';');
+    const sdk   = SDKS.find(s=>s.id===(flagSdks[f.id]||'javascript'))?.label||'JavaScript';
+    rows.push([f.id, gbFlagStatus(f,cfg.gbEnv), f.valueType||'boolean', gbRuleTypeSummary(f,cfg.gbEnv), risks, String(f.defaultValue??''), sdk, selectedKeys.has(f.id)?'Yes':'No']);
+  });
+  download('growthbook_migration.csv', rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n'), 'text/csv');
+}
+function exportJSON() {
+  const cfg = getCfg();
+  const data = allFlags.map(f => ({
+    key: f.id, status: gbFlagStatus(f,cfg.gbEnv), valueType: f.valueType,
+    ruleType: gbRuleTypeSummary(f,cfg.gbEnv), defaultValue: f.defaultValue,
+    risks: gbRisks(f,cfg.gbEnv).map(r=>({level:r.level,label:r.label})),
+    sdk: SDKS.find(s=>s.id===(flagSdks[f.id]||'javascript'))?.label,
+    selected: selectedKeys.has(f.id),
+  }));
+  download('growthbook_migration.json', JSON.stringify({generatedAt:new Date().toISOString(),total:allFlags.length,selected:selectedKeys.size,flags:data},null,2), 'application/json');
+}
+function exportMarkdown() {
+  const cfg = getCfg();
+  let md = `# GrowthBook → Mixpanel Migration Report\n\n**Generated:** ${new Date().toLocaleString()}\n**Total:** ${allFlags.length} | **Selected:** ${selectedKeys.size}\n\n| Key | Status | Type | Rule type | Risks | Selected |\n|-----|--------|------|-----------|-------|----------|\n`;
+  allFlags.forEach(f => {
+    const risks = gbRisks(f,cfg.gbEnv).map(r=>r.label).join(', ')||'—';
+    md += `| \`${f.id}\` | ${gbFlagStatus(f,cfg.gbEnv)} | ${f.valueType||'boolean'} | ${gbRuleTypeSummary(f,cfg.gbEnv)} | ${risks} | ${selectedKeys.has(f.id)?'✓':'—'} |\n`;
+  });
+  download('growthbook_migration.md', md, 'text/markdown');
+}
+function exportCodeSamples() {
+  const token = v('mp-token') || 'YOUR_PROJECT_TOKEN';
+  let md = `# GrowthBook → Mixpanel SDK Code Samples\n\n`;
+  allFlags.filter(f=>selectedKeys.has(f.id)).forEach(f => {
+    const sdk  = flagSdks[f.id] || 'javascript';
+    const mode = getEvalMode(f.id, sdk);
+    const variants = gbBuildVariants(f, getCfg().gbEnv);
+    const variantList = ['control', ...variants.map(vr=>vr.mpKey)];
+    const s = generateSnippets(sdk, mode, f.id, variantList, token);
+    md += `## ${f.id}\n\n### SDK Init\n\`\`\`\n${el(`${f.id}-init`)?.innerText||''}\n\`\`\`\n\n### Flag Retrieval\n\`\`\`\n${el(`${f.id}-eval`)?.innerText||''}\n\`\`\`\n\n### Exposure\n\`\`\`\n${el(`${f.id}-exposure`)?.innerText||''}\n\`\`\`\n\n---\n\n`;
+  });
+  download('growthbook_migration_code.md', md, 'text/markdown');
+}
+function download(filename, content, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type:mime}));
+  a.download = filename; a.click();
+}
+
+// ── Pill helpers ──────────────────────────────────────────────────────────────
+function statusPill(flag, env) {
+  const s = gbFlagStatus(flag, env);
+  const m = { enabled:'pill-green', disabled:'pill-neutral', archived:'pill-red' };
+  return `<span class="pill ${m[s]||'pill-neutral'}">${s}</span>`;
+}
+function valueTypePill(t) {
+  const m = { boolean:'pill-neutral', string:'pill-teal', number:'pill-amber', json:'pill-purple' };
+  return `<span class="pill ${m[t]||'pill-neutral'}">${t||'boolean'}</span>`;
+}
+function ruleTypePill(t) {
+  const m = { experiment:'pill-purple', rollout:'pill-green', force:'pill-teal', plain:'pill-neutral' };
+  const l = { experiment:'experiment', rollout:'% rollout', force:'force', plain:'—' };
+  return `<span class="pill ${m[t]||'pill-neutral'}">${l[t]||t}</span>`;
+}
+
+// ── Shared utils ──────────────────────────────────────────────────────────────
+const el  = id => document.getElementById(id);
+const v   = id => el(id)?.value?.trim() || '';
+const esc = s  => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function gbHeaders(cfg) {
+  return { Authorization: `Bearer ${cfg.gbToken}`, Accept: 'application/json' };
+}
+function mpAuthHeaders() {
+  return { Authorization: `Basic ${encodedMpAuth}`, 'Content-Type': 'application/json', Accept: 'application/json' };
+}
+function showErr(el, msg) {
+  el.innerHTML = `<div class="alert alert-error">${msg}</div>`;
+  el.style.display = '';
+}
+function log(text, type='') {
+  const box = el('import-log');
+  const d = document.createElement('div');
+  if (type) d.className = type;
+  d.textContent = text;
+  box.appendChild(d); box.scrollTop = box.scrollHeight;
+}
+function markNavDone(id) {
+  const nav = document.querySelector(`[data-view="${id}"]`);
+  if (nav) { nav.classList.add('done'); const sn = el(`sn-${id}`); if(sn){sn.style.background='#3BA974';sn.style.color='white';} }
+}
+
+// ── Abort ─────────────────────────────────────────────────────────────────────
+function abortImport() {
+  importAborted = true;
+  el('btn-abort').disabled = true;
+  el('btn-abort').textContent = 'Aborting…';
+}
+
+// ── Retry failed ──────────────────────────────────────────────────────────────
+async function retryFailed() {
+  if (!failedFlags.length) return;
+  const toRetry = [...failedFlags];
+  failedFlags = [];
+  el('btn-retry').style.display = 'none';
+  // temporarily add back to selectedKeys and re-run import for just these
+  selectedKeys = new Set(toRetry.map(f => f.id ?? f.key));
+  await runImport(false);
+}
+
+// ── Copy log ──────────────────────────────────────────────────────────────────
+function copyLog() {
+  const lines = Array.from(el('import-log').querySelectorAll('div')).map(d => d.textContent);
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = el('btn-copy-log');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy log'; }, 2000);
+  });
+}
+
+// ── Flag key validator ────────────────────────────────────────────────────────
+function validateFlagKey(key) {
+  // Mixpanel flag keys: lowercase alphanumeric, hyphens, underscores, max 256 chars
+  if (!key) return 'Key is empty';
+  if (key.length > 256) return `Key too long (${key.length} chars, max 256)`;
+  if (!/^[a-z0-9_-]+$/.test(key)) {
+    const bad = [...new Set(key.replace(/[a-z0-9_-]/g, '').split(''))].join('');
+    return `Invalid characters: ${bad} (only a-z, 0-9, _ and - allowed)`;
+  }
+  return null;
+}
+
+// ── mpFetch: fetch with 429 retry + network error handling ───────────────────
+async function mpFetch(url, options, maxRetries=3) {
+  let delay = 2000;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, options);
+    } catch (err) {
+      if (attempt === maxRetries) throw new Error(`Network error: ${err.message}`);
+      await sleep(delay); delay *= 2; continue;
+    }
+    if (res.status === 429) {
+      if (attempt === maxRetries) return res;
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '0') * 1000 || delay;
+      log(`   ⏳ Rate limited — waiting ${Math.round(retryAfter/1000)}s before retry ${attempt+1}/${maxRetries}…`, 'warn');
+      await sleep(retryAfter); delay *= 2; continue;
+    }
+    return res;
+  }
+}
+
+</script>
+</body>
+</html>

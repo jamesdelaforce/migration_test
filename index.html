@@ -106,7 +106,7 @@
   /* ── Tool cards grid ── */
   .tools-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
     margin-bottom: 48px;
   }
@@ -152,6 +152,7 @@
   .provider-logo.ld   { background: #1B1B2E; }
   .provider-logo.opt  { background: #0037FF; }
   .provider-logo.stat { background: #1A1A1A; }
+  .provider-logo.gb   { background: #162A3E; }
 
   .provider-name { font-size: 15px; font-weight: 600; color: var(--gray-10); }
   .provider-type { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
@@ -189,6 +190,7 @@
   }
   .status-ready    { background: var(--grass-01); color: var(--grass-07); }
   .status-soon     { background: var(--gray-02); color: var(--gray-08); border: 1px solid var(--border); }
+  .status-qa       { background: #FEF8EB; color: #CA9430; border: 1px solid #FCE0A5; }
 
   /* ── OpenFeature info strip ── */
   .of-strip {
@@ -330,7 +332,38 @@
       </div>
       <div class="tool-card-footer">
         <span class="tool-card-cta">Open tool <span class="tool-card-cta-arrow">→</span></span>
-        <span class="tool-card-status status-ready">Ready</span>
+        <span class="tool-card-status status-qa">In QA</span>
+      </div>
+    </a>
+
+    <!-- GrowthBook -->
+    <a class="tool-card" href="./growthbook_mixpanel_migration.html">
+      <div class="tool-card-accent"></div>
+      <div class="tool-card-body">
+        <div class="tool-card-provider">
+          <div class="provider-logo gb">
+            <!-- GrowthBook "flask" mark, simplified -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M7 3H13V9L16.5 15.5C16.9 16.3 16.3 17 15.4 17H4.6C3.7 17 3.1 16.3 3.5 15.5L7 9V3Z" stroke="white" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+              <path d="M5.5 13H14.5" stroke="white" stroke-width="1.5" opacity="0.5"/>
+              <path d="M7 3H13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div>
+            <div class="provider-name">GrowthBook</div>
+            <div class="provider-type">Open Source Feature Flags</div>
+          </div>
+        </div>
+        <p class="tool-card-desc">Supports OpenFeature provider swap and full SDK migration. Translates GrowthBook targeting conditions to Mixpanel JsonLogic rules automatically.</p>
+        <div class="tool-card-tags">
+          <span class="tag tag-of">OpenFeature</span>
+          <span class="tag tag-api">Full API migration</span>
+          <span class="tag tag-api">Rule translation</span>
+        </div>
+      </div>
+      <div class="tool-card-footer">
+        <span class="tool-card-cta">Open tool <span class="tool-card-cta-arrow">→</span></span>
+        <span class="tool-card-status status-qa">In QA</span>
       </div>
     </a>
 
@@ -372,11 +405,12 @@
     <div class="of-strip-body">
       <div class="of-strip-title">Already using the OpenFeature SDK?</div>
       <div class="of-strip-text">
-        If your codebase uses the OpenFeature SDK with a LaunchDarkly or Statsig provider, migration is a <strong>single provider swap</strong> — no changes to flag evaluation call sites. The tools below detect your path and show before/after code for each SDK.
+        If your codebase uses the OpenFeature SDK with a LaunchDarkly, GrowthBook, or Statsig provider, migration is a <strong>single provider swap</strong> — no changes to flag evaluation call sites. The tools below detect your path and show before/after code for each SDK.
       </div>
       <div class="of-providers">
         <span class="of-pill"><span class="dot green"></span> LaunchDarkly — official OpenFeature provider</span>
         <span class="of-pill"><span class="dot amber"></span> Statsig — community OpenFeature provider</span>
+        <span class="of-pill"><span class="dot green"></span> GrowthBook — official OpenFeature provider</span>
         <span class="of-pill"><span class="dot gray"></span> Optimizely — community OpenFeature provider</span>
       </div>
     </div>
