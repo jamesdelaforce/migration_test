@@ -36,10 +36,10 @@ Custom conditions
 
 
 todo
-1. the migration html files are way too long, need to clean up and modularise
-2. what is dry run?
-3. test feature gate with stableID (device ID)
+1. DONE/the migration html files are way too long, need to clean up and modularise
+2. DONE/test experiment 
+3. DONE/test dynamic config
 4. test feature gate with customIDs? (group analytics)
-5. test experiment
-6. test dynamic config
+5. test feature gate with stableID (device ID)
+6. what is dry run?
 
