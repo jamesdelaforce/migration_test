@@ -1,0 +1,51 @@
+// this one works 
+
+curl --request POST \
+     --url https://mixpanel.com/api/app/projects/4036811/workspaces/4533074/feature-flags \
+     --header 'accept: application/json' \
+     --header 'authorization: Basic ZmZldGVzdC4zNzllYjQubXAtc2VydmljZS1hY2NvdW50OllKeDAzNWt4bDcwbTlBM0ZpeHFONWFSNjF0T29QREFT' \
+     --header 'content-type: application/json' \
+     --data '
+{
+  "description": null,
+  "status": "disabled",
+  "data_group_id": null,
+  "serving_method": "client",
+  "ruleset": {
+    "test": null,
+    "variants": [
+      {
+        "value": true,
+        "description": null,
+        "is_control": true,
+        "is_sticky": false,
+        "key": "controll",
+        "split": 1
+      }
+    ],
+    "rollout": [
+      {
+        "name": null,
+        "runtime_evaluation_rule": null,
+        "runtime_event_rule": null,
+        "cohort_hash": null,
+        "variant_override": null,
+        "variant_splits": {
+          "newKey": 0
+        },
+        "rollout_percentage": 0.4
+      }
+    ]
+  },
+  "workspace_id": null,
+  "is_experiment_active": null,
+  "hash_salt": null,
+  "reset_hash_salt": null,
+  "name": "featureflag1",
+  "key": "key1",
+  "tags": [
+    "a,b,c"
+  ],
+  "context": "this is a test flag"
+}
+'

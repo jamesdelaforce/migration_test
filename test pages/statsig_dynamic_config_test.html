@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statsig Dynamic Config Test</title>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .button {
+      background: #7856FF;
+      color: white;
+      border: none;
+      padding: 16px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 10px 10px 10px 0;
+    }
+    .button:hover {
+      background: #5F41CF;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(120, 86, 255, 0.3);
+    }
+    .button:active {
+      transform: translateY(0);
+    }
+    .button.secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+    .button.secondary:hover {
+      background: #d0d0d0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .info {
+      background: #f0f9fe;
+      border-left: 4px solid #72BEF4;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background: #ebf6f1;
+      border-left: 4px solid #3BA974;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 4px;
+      display: none;
+    }
+    .output {
+      background: #2E1670;
+      color: #C1B1FF;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: 'Monaco', monospace;
+      font-size: 14px;
+      margin-top: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .output-line {
+      margin: 5px 0;
+    }
+    .output-line.success {
+      color: #7FE1D8;
+    }
+    .output-line.error {
+      color: #FFBFB1;
+    }
+    .output-line.info {
+      color: #C1B1FF;
+    }
+    code {
+      background: rgba(120, 86, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', monospace;
+      font-size: 14px;
+    }
+    .user-input {
+      margin: 20px 0;
+    }
+    .user-input label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    .user-input input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    .user-input input:focus {
+      outline: none;
+      border-color: #7856FF;
+    }
+    .config-values {
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 20px;
+      display: none;
+    }
+    .config-values h3 {
+      margin-top: 0;
+      color: #333;
+      font-size: 16px;
+    }
+    .config-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .config-item:last-child {
+      border-bottom: none;
+    }
+    .config-key {
+      font-weight: 600;
+      color: #555;
+    }
+    .config-value {
+      font-family: 'Monaco', monospace;
+      color: #7856FF;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Statsig Dynamic Config Test</h1>
+    <div class="subtitle">Test dynamic configuration loading and parameter access</div>
+
+    <div class="info">
+      <strong>⚙️ How this works:</strong><br>
+      1. Enter your Statsig Client SDK key<br>
+      2. Enter the Dynamic Config name<br>
+      3. Click "Initialize Statsig" to set up the client<br>
+      4. Click "Load Dynamic Config" to fetch config values
+    </div>
+
+    <div class="user-input">
+      <label for="client-key">Statsig Client SDK Key:</label>
+      <input type="text" id="client-key" value="client-kjnZlelR5fm9XPHvDUePDl84c7A3nTQyhw7zE83BiGQ" placeholder="client-...">
+    </div>
+
+    <div class="user-input">
+      <label for="config-name">Dynamic Config Name:</label>
+      <input type="text" id="config-name" value="" placeholder="e.g. my_config">
+    </div>
+
+    <div class="user-input">
+      <label for="user-id">User ID (for targeting):</label>
+      <input type="text" id="user-id" value="test-user-123" placeholder="Enter user ID">
+    </div>
+
+    <div>
+      <button class="button secondary" onclick="initializeStatsig()">1. Initialize Statsig</button>
+      <button class="button" onclick="loadDynamicConfig()" id="config-btn" disabled>2. Load Dynamic Config</button>
+    </div>
+
+    <div class="success" id="success-msg">
+      ✅ <strong>Dynamic Config loaded!</strong> See the values below.
+    </div>
+
+    <div class="config-values" id="config-values">
+      <h3>📦 Config Parameters</h3>
+      <div id="config-items"></div>
+    </div>
+
+    <div class="output" id="output">
+      <div class="output-line info">Waiting for initialization...</div>
+    </div>
+  </div>
+
+  <!-- Statsig SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/statsig-js@4.42.0/build/statsig-prod-web-sdk.min.js"></script>
+
+  <script>
+    let statsigInitialized = false;
+    let dynamicConfig = null;
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const line = document.createElement('div');
+      line.className = `output-line ${type}`;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function initializeStatsig() {
+      const clientKey = document.getElementById('client-key').value.trim();
+      const userId = document.getElementById('user-id').value || 'test-user-123';
+
+      if (!clientKey) {
+        log('✗ Please enter a Statsig Client SDK key', 'error');
+        return;
+      }
+
+      log('🚀 Initializing Statsig client...', 'info');
+
+      try {
+        // Initialize Statsig (singleton pattern)
+        await statsig.initialize(clientKey, {
+          userID: userId
+        });
+
+        statsigInitialized = true;
+        log(`✓ Statsig initialized for user: ${userId}`, 'success');
+
+        // Enable the config button
+        document.getElementById('config-btn').disabled = false;
+
+      } catch (error) {
+        log(`✗ Error initializing Statsig: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+
+    function loadDynamicConfig() {
+      const configName = document.getElementById('config-name').value.trim();
+
+      if (!statsigInitialized) {
+        log('✗ Please initialize Statsig first!', 'error');
+        return;
+      }
+
+      if (!configName) {
+        log('✗ Please enter a Dynamic Config name', 'error');
+        return;
+      }
+
+      log(`📥 Loading Dynamic Config: ${configName}...`, 'info');
+
+      try {
+        // Get the dynamic config (singleton pattern)
+        dynamicConfig = statsig.getConfig(configName);
+
+        const configValue = dynamicConfig.value;
+        const configKeys = Object.keys(configValue);
+
+        log(`✓ Dynamic Config loaded: ${configName}`, 'success');
+        log(`  - Total parameters: ${configKeys.length}`, 'info');
+
+        // Log to browser console
+        console.group('⚙️ Statsig Dynamic Config');
+        console.log('Config Name:', configName);
+        console.log('All Values:', configValue);
+        console.log('Config Object:', dynamicConfig);
+        console.groupEnd();
+
+        // Display config values in the UI
+        displayConfigValues(configValue);
+
+        // Test accessing individual parameters
+        if (configKeys.length > 0) {
+          log(`\n📋 Sample parameter access:`, 'info');
+          configKeys.slice(0, 3).forEach(key => {
+            const value = dynamicConfig.get(key, null);
+            const type = typeof value;
+            log(`  - ${key} (${type}): ${JSON.stringify(value)}`, 'info');
+          });
+        }
+
+        // Show success message
+        document.getElementById('success-msg').style.display = 'block';
+
+        log('\nℹ️ Check browser console (F12) for full config details', 'info');
+
+      } catch (error) {
+        log(`✗ Error loading Dynamic Config: ${error.message}`, 'error');
+        console.error('Statsig Dynamic Config Error:', error);
+      }
+    }
+
+    function displayConfigValues(configValue) {
+      const configValuesDiv = document.getElementById('config-values');
+      const configItemsDiv = document.getElementById('config-items');
+
+      configItemsDiv.innerHTML = '';
+
+      const keys = Object.keys(configValue);
+
+      if (keys.length === 0) {
+        configItemsDiv.innerHTML = '<p style="color: #999;">No parameters configured</p>';
+      } else {
+        keys.forEach(key => {
+          const value = configValue[key];
+          const item = document.createElement('div');
+          item.className = 'config-item';
+
+          const keySpan = document.createElement('span');
+          keySpan.className = 'config-key';
+          keySpan.textContent = key;
+
+          const valueSpan = document.createElement('span');
+          valueSpan.className = 'config-value';
+          valueSpan.textContent = JSON.stringify(value);
+
+          item.appendChild(keySpan);
+          item.appendChild(valueSpan);
+          configItemsDiv.appendChild(item);
+        });
+      }
+
+      configValuesDiv.style.display = 'block';
+    }
+
+    // Log page load
+    log('Page loaded. Enter your config details and click "Initialize Statsig".', 'info');
+  </script>
+</body>
+</html>

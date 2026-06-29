@@ -1,0 +1,37 @@
+// this is a paylod that was sent with the app
+
+{
+  "name": "test",
+  "key": "test",
+  "description": null,
+  "tags": [],
+  "status": "enabled",
+  "serving_method": "client",
+  "experiment_id": null,
+  "ruleset": {
+    "variants": [
+      {
+        "key": "control",
+        "value": "control",
+        "is_control": true,
+        "split": 0.5,
+        "description": "Control — Migrated from Statsig"
+      },
+      {
+        "key": "treatment",
+        "value": "treatment",
+        "is_control": false,
+        "split": 0.5,
+        "description": "Treatment — Migrated from Statsig. Original: pass"
+      }
+    ],
+    "rollout": [
+      {
+        "rollout_percentage": 1,
+        "variant_splits": {
+          "treatment": 1
+        }
+      }
+    ]
+  }
+}
