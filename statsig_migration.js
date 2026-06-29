@@ -51,7 +51,7 @@ async function fetchFlags() {
   const cfg = getCfg();
   const eb = el('config-error'); eb.style.display = 'none';
   if (!cfg.statsigKey) return showErr(eb, 'Statsig Console API key is required.');
-  if (!cfg.importGates && !cfg.importExperiments) return showErr(eb, 'Select at least one of feature gates or experiments to import.');
+  if (!cfg.importGates && !cfg.importExperiments && !cfg.importConfigs) return showErr(eb, 'Select at least one of feature gates, experiments, or dynamic configs to import.');
   if (!v('mp-user') || !v('mp-secret')) return showErr(eb, 'Mixpanel service account username and secret are required.');
   const btn = el('btn-fetch'); btn.disabled = true; btn.textContent = 'Fetching…';
   try {
@@ -75,6 +75,10 @@ async function doFetchFlags(cfg) {
   if (cfg.importExperiments) {
     const exps = await fetchStatsigList(cfg, 'experiments');
     exps.forEach(e => flags.push(normalizeExperiment(e)));
+  }
+  if (cfg.importConfigs) {
+    const configs = await fetchStatsigList(cfg, 'dynamic_configs');
+    configs.forEach(c => flags.push(normalizeDynamicConfig(c)));
   }
   return flags;
 }
@@ -132,6 +136,27 @@ function normalizeExperiment(e) {
     idType: e.idType || e.id_type || null,
     hypothesis: e.hypothesis || '',
     raw: e,
+  };
+}
+
+function normalizeDynamicConfig(c) {
+  // Dynamic configs have default values which we'll use as variant values
+  const defaultValue = c.defaultValue || c.default_value || {};
+
+  return {
+    key: c.id || c.name,
+    name: c.name || c.id,
+    description: c.description || '',
+    tags: Array.isArray(c.tags) ? c.tags.map(String) : [],
+    source: 'config',
+    enabled: c.isEnabled !== false,
+    status: undefined,
+    rules: Array.isArray(c.rules) ? c.rules : [],
+    groups: [],
+    allocation: null,
+    idType: c.idType || c.id_type || null,
+    defaultValue: defaultValue,  // Store the default config values
+    raw: c,
   };
 }
 
@@ -1087,9 +1112,39 @@ function buildRuleset(flag) {
   const treatments = buildVariantNames(flag);  // [{ mpKey, statsigKey, name }]
   const totalV = 1 + treatments.length;
   const even = parseFloat((1/totalV).toFixed(6));
+
+  // Determine variant value types based on source:
+  // - Gates: boolean (true/false)
+  // - Experiments: string (variant keys)
+  // - Dynamic Configs: object (the config values)
+  const isExperiment = flag.source === 'experiment';
+  const isDynamicConfig = flag.source === 'config';
+
+  let controlValue, treatmentValue;
+
+  if (isDynamicConfig) {
+    // For dynamic configs, use the default value object
+    controlValue = flag.defaultValue || {};
+    treatmentValue = flag.defaultValue || {};
+  } else if (isExperiment) {
+    controlValue = 'control';
+    treatmentValue = (t) => t.mpKey;
+  } else {
+    // Gate
+    controlValue = true;
+    treatmentValue = false;
+  }
+
   const variants = [
-    { key:'control', value:true, is_control:true, is_sticky:false, split:even, description:'Control — Migrated from Statsig' },
-    ...treatments.map(t => ({ key:t.mpKey, value:false, is_control:false, is_sticky:false, split:even, description:`Treatment — Migrated from Statsig. Original: ${t.statsigKey}` })),
+    { key:'control', value:controlValue, is_control:true, is_sticky:false, split:even, description:'Control — Migrated from Statsig' },
+    ...treatments.map(t => ({
+      key:t.mpKey,
+      value: isDynamicConfig ? (flag.defaultValue || {}) : (isExperiment ? t.mpKey : false),
+      is_control:false,
+      is_sticky:false,
+      split:even,
+      description:`Treatment — Migrated from Statsig. Original: ${t.statsigKey}`
+    })),
   ];
 
   // Rollout percentage
@@ -1178,6 +1233,7 @@ function getCfg() {
     statsigKey: v('st-key'),
     importGates: el('imp-gates').checked,
     importExperiments: el('imp-exps').checked,
+    importConfigs: el('imp-configs').checked,
     mpProject: v('mp-project'),
     mpWorkspace: v('mp-workspace'),
     mpRegion: v('mp-region')||'us',
@@ -1205,9 +1261,9 @@ function statusPill(f) {
   return `<span class="pill ${cls}">${s}</span>`;
 }
 function sourcePill(f) {
-  return f.source==='experiment'
-    ? '<span class="pill pill-purple">experiment</span>'
-    : '<span class="pill pill-teal">gate</span>';
+  if (f.source === 'experiment') return '<span class="pill pill-purple">experiment</span>';
+  if (f.source === 'config') return '<span class="pill pill-amber">config</span>';
+  return '<span class="pill pill-teal">gate</span>';
 }
 function ruleTypePill(t) {
   if(t==='experiment') return '<span class="pill pill-purple">experiment</span>';
@@ -1236,7 +1292,7 @@ function showErr(elem, msg) {
 // current step across reloads so troubleshooting doesn't require re-fetching.
 const STORAGE_KEY = 'statsig_mp_migration_state_v1';
 const FORM_FIELDS = ['st-key','mp-user','mp-secret','mp-project','mp-workspace','mp-token','mp-region'];
-const FORM_CHECKS = ['imp-gates','imp-exps','dry-run'];
+const FORM_CHECKS = ['imp-gates','imp-exps','imp-configs','dry-run'];
 let lastView = 'config';
 
 function persist() {
