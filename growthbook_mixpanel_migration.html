@@ -629,18 +629,34 @@ function parseCondition(str) {
 // ── Flag helpers ──────────────────────────────────────────────────────────────
 // Get the active rules for the selected environment from the published revision
 function gbActiveRules(flag, env) {
-  // v1 API: rules are in environmentSettings per-environment
-  const envSettings = flag.environmentSettings?.[env];
+  // The v1 Management API (GET /api/v1/features) nests per-environment config
+  // under `environments[env].rules`. (`environmentSettings` is GrowthBook's
+  // INTERNAL model name, exposed only to custom hooks — not the REST response.)
+  // We read `environments` first and fall back to `environmentSettings` so the
+  // tool works regardless of API surface/version.
+  const envSettings = flag.environments?.[env] ?? flag.environmentSettings?.[env];
   if (!envSettings) return [];
-  // Rules from environmentSettings (v1 feature object)
-  // In the actual GET /features response, rules live under environmentSettings[env].rules
   return envSettings.rules ?? [];
 }
 
 function gbFlagStatus(flag, env) {
   if (flag.archived) return 'archived';
-  const envEnabled = flag.environmentSettings?.[env]?.enabled;
+  const envEnabled = (flag.environments?.[env] ?? flag.environmentSettings?.[env])?.enabled;
   return envEnabled ? 'enabled' : 'disabled';
+}
+
+// Saved-group targeting on a rule. The v1 REST API exposes this as
+// `savedGroupTargeting` ([{ matchType, savedGroups:[ids] }, ...]); older/internal
+// shapes used a flat `savedGroups` array. Return a normalised non-empty array
+// when either is present so detection (length > 0) is reliable.
+function gbSavedGroups(rule) {
+  if (Array.isArray(rule.savedGroupTargeting) && rule.savedGroupTargeting.length) {
+    return rule.savedGroupTargeting;
+  }
+  if (Array.isArray(rule.savedGroups) && rule.savedGroups.length) {
+    return rule.savedGroups;
+  }
+  return [];
 }
 
 function gbRuleTypeSummary(flag, env) {
@@ -658,7 +674,7 @@ function gbRisks(flag, env) {
   const rules = gbActiveRules(flag, env);
 
   // Saved groups — cannot be auto-translated
-  const savedGroupRules = rules.filter(r => (r.savedGroups ?? []).length > 0);
+  const savedGroupRules = rules.filter(r => gbSavedGroups(r).length > 0);
   if (savedGroupRules.length > 0) {
     risks.push({ level: 'high', label: 'saved groups',
       detail: `${savedGroupRules.length} rule(s) use savedGroup targeting — recreate as Mixpanel cohorts manually.` });
@@ -755,7 +771,7 @@ function gbBuildRollout(flag, env, variants) {
     const condObj = parseCondition(rule.condition);
     const jsonLogicRule = condObj ? gbConditionToJsonLogic(condObj) : null;
     const definition    = condObj ? gbConditionToDefinition(condObj) : {};
-    const hasSavedGroups = (rule.savedGroups ?? []).length > 0;
+    const hasSavedGroups = gbSavedGroups(rule).length > 0;
 
     if (rule.type === 'force') {
       // Force rule — 100% rollout to the matching treatment
@@ -1143,6 +1159,8 @@ async function runImport(dryRun=false) {
   el('import-log').innerHTML = '';
   el('progress-bar').style.width = '0%';
   const mpDomain = cfg.mpRegion === 'us' ? 'mixpanel.com' : `${cfg.mpRegion}.mixpanel.com`;
+
+  log('ℹ Reminder: translated conditions become Mixpanel runtime rules. Mixpanel LOCAL evaluation only supports a single exact-match condition — multi-condition rules always evaluate to TRUE there. Use REMOTE evaluation for any flag that relies on targeting.', 'warn');
 
   const keyErrors = [];
   for (const flag of selected) {
