@@ -139,6 +139,17 @@
   .code-pre{background:var(--purple-10);color:#C1B1FF;padding:14px 16px;font-family:var(--mono);font-size:12px;line-height:1.75;overflow-x:auto;white-space:pre;margin:0;}
   .code-pre .kw{color:#A993FF;}.code-pre .str{color:#7FE1D8;}.code-pre .cm{color:rgba(193,177,255,0.35);}.code-pre .fn{color:#8BCCF6;}.code-pre .num{color:#FAD482;}
 </style>
+<!-- Mixpanel product analytics (tracks usage of this tool itself — separate from the GrowthBook/Mixpanel API credentials entered in the app) -->
+<script src="https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js"></script>
+<script>
+  (function(){
+    if (typeof mixpanel === 'undefined') return;
+    mixpanel.init('db28b268ce57682c16ae2e1c5d36fc0f', {
+      track_pageview: true,
+      persistence: 'localStorage',
+    });
+  })();
+</script>
 </head>
 <body>
 <div class="app">
@@ -428,6 +439,11 @@
 </div>
 
 <script>
+// ── Analytics (safe wrapper — never lets a blocked/missing SDK break the tool) ─
+function track(name, props) {
+  try { if (typeof mixpanel !== 'undefined' && mixpanel.track) mixpanel.track(name, props); }
+  catch(e) { /* analytics must never break the app */ }
+}
 // ── State ─────────────────────────────────────────────────────────────────────
 let allFlags = [];
 let importAborted = false;
@@ -483,7 +499,11 @@ function goTo(id) {
   document.querySelector(`[data-view="${id}"]`).classList.add('active');
   if (id === 'export') renderReport();
   if (id === 'code')   renderCodeBlocks();
-  if (id === 'import') { el('s-total').textContent = selectedKeys.size; updateImportRateHint(); }
+  if (id === 'import') {
+    el('s-total').textContent = selectedKeys.size;
+    updateImportRateHint();
+    track('Flags Selected', { selected_count: selectedKeys.size, total_flags: allFlags.length });
+  }
 }
 
 // ── Rate limit ────────────────────────────────────────────────────────────────
@@ -532,8 +552,12 @@ async function fetchFlags() {
     selectedKeys = new Set(allFlags.map(f => f.id));
     renderTable();
     markNavDone('config');
+    track('Flags Fetched', { flag_count: allFlags.length, gb_env: cfg.gbEnv, mp_region: cfg.mpRegion });
     goTo('select');
-  } catch(e) { showErr(eb, e.message); }
+  } catch(e) {
+    showErr(eb, e.message);
+    track('Flags Fetch Failed', { error: e.message, gb_env: cfg.gbEnv });
+  }
   finally { btn.disabled = false; btn.textContent = 'Fetch flags from GrowthBook'; }
 }
 
@@ -1154,6 +1178,8 @@ async function runImport(dryRun=false) {
   el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.id));
   let flagOk = 0, skip = 0, fail = 0;
+  const importStartTs = Date.now();
+  track('Import Started', { dry_run: dryRun, selected_count: selected.length, mp_region: cfg.mpRegion });
   el('s-total').textContent = selected.length;
   el('s-flag').textContent = '0'; el('s-fail').textContent = '0'; el('s-skip').textContent = '0';
   el('import-log').innerHTML = '';
@@ -1170,6 +1196,7 @@ async function runImport(dryRun=false) {
   if (keyErrors.length) {
     for (const e of keyErrors) log(`✗ Key validation failed — ${e}`, 'err');
     log('Fix the above flag keys in GrowthBook before importing.', 'err');
+    track('Import Failed', { reason: 'key_validation', dry_run: dryRun, error_count: keyErrors.length });
     el('btn-run').disabled = false; el('btn-preview').disabled = false;
     el('btn-abort').style.display = 'none';
     return;
@@ -1214,10 +1241,12 @@ async function runImport(dryRun=false) {
           const detail = typeof body?.error === 'object' ? JSON.stringify(body.error) : (body?.error ?? body?.message ?? 'HTTP ' + res.status);
           log(`   ✗ Failed: ${detail}`, 'err'); fail++;
           failedFlags.push(flag);
+          track('Flag Import Error', { flag_key: flag.id, status: res.status, error: detail });
         }
       } catch(err) {
         log(`   ✗ Network error: ${err.message}`, 'err'); fail++;
         failedFlags.push(flag);
+        track('Flag Import Error', { flag_key: flag.id, status: 'network_error', error: err.message });
       }
       await sleep(cfg.delayMs);
     }
@@ -1227,6 +1256,14 @@ async function runImport(dryRun=false) {
 
   const summary = `Done — ${flagOk} created, ${skip} skipped${fail ? `, ${fail} failed` : ''}${importAborted ? ' (aborted)' : ''}`;
   log(summary, fail ? 'err' : 'ok');
+  track(fail ? 'Import Completed With Errors' : 'Import Succeeded', {
+    dry_run: dryRun,
+    created: flagOk,
+    skipped: skip,
+    failed: fail,
+    aborted: importAborted,
+    duration_ms: Date.now() - importStartTs,
+  });
   el('btn-run').disabled = false; el('btn-preview').disabled = false;
   el('btn-abort').style.display = 'none';
   el('btn-copy-log').style.display = '';
@@ -1332,6 +1369,7 @@ function abortImport() {
   importAborted = true;
   el('btn-abort').disabled = true;
   el('btn-abort').textContent = 'Aborting…';
+  track('Import Aborted');
 }
 
 // ── Retry failed ──────────────────────────────────────────────────────────────
