@@ -584,6 +584,23 @@ async function doFetchFlags(cfg) {
   return flags;
 }
 
+// Fetch the full GrowthBook Experiment resource referenced by a feature rule's
+// experimentId. This is a separate top-level resource in GrowthBook (unlike
+// Optimizely, where a/b rule + variation data is embedded directly in the
+// flag's ruleset) — feature rules only carry the ID, not the experiment's
+// name/hypothesis/variations, so we need this extra read to build a
+// meaningful linked Mixpanel experiment instead of just a manual-link warning.
+// Read-only GET — safe to call even during a dry run.
+async function doFetchGbExperiment(cfg, experimentId) {
+  if (!experimentId) return null;
+  try {
+    const url = `${cfg.gbHost}/api/v1/experiments/${encodeURIComponent(experimentId)}`;
+    const res = await fetch(url, { headers: gbHeaders(cfg) });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+
 // ── GrowthBook condition → JsonLogic ─────────────────────────────────────────
 // GB conditions use MongoDB-style operators: $eq $ne $in $nin $gt $gte $lt $lte
 // $exists $type $regex $all $elemMatch $size $not $and $or $nor
@@ -876,7 +893,7 @@ function gbBuildRollout(flag, env, variants) {
 }
 
 // ── Payload builder ───────────────────────────────────────────────────────────
-function buildMpFlagPayload(flag, cfg) {
+function buildMpFlagPayload(flag, cfg, mpExperimentId) {
   const sdk           = flagSdks[flag.id] || 'javascript';
   const servingMethod = SDKS.find(s => s.id === sdk)?.serving || 'client';
   const variants      = gbBuildVariants(flag, cfg.gbEnv);
@@ -904,12 +921,42 @@ function buildMpFlagPayload(flag, cfg) {
     context: 'user',
     status: gbFlagStatus(flag, cfg.gbEnv) === 'enabled' ? 'enabled' : 'disabled',
     serving_method: servingMethod,
-    experiment_id: null,
+    experiment_id: mpExperimentId ?? null,
     ruleset: {
       variants: mpVariants,
       rollout: rolloutEntries.map(({ _meta, ...entry }) => entry),
     },
     _gbRolloutMeta: rolloutEntries,
+  };
+}
+
+// Build a Mixpanel experiment-creation payload from a GrowthBook Experiment
+// resource (fetched separately via doFetchGbExperiment). Falls back to the
+// feature rule's own variations/coverage if the experiment fetch failed or
+// returned nothing usable, so we can still create *something* linkable.
+function buildGbExperimentPayload(flag, gbExperiment, rule) {
+  const expVariations = (gbExperiment?.variations?.length ? gbExperiment.variations : rule.variations) ?? [];
+  const variants = expVariations.length
+    ? expVariations.map(vr => ({
+        name: vr.name || vr.key || vr.variationId || 'Variant',
+        description: `GrowthBook variation key: ${vr.key ?? vr.variationId ?? ''}`,
+      }))
+    : [{ name: 'Control' }, { name: 'Treatment' }];
+
+  const phases = Array.isArray(gbExperiment?.phases) ? gbExperiment.phases : [];
+  const lastPhase = phases.length ? phases[phases.length - 1] : null;
+  const trafficFraction = lastPhase?.coverage ?? rule.coverage ?? 1;
+
+  return {
+    name: trunc(gbExperiment?.name || rule.name || rule.trackingKey || flag.id, 255),
+    description: trunc(
+      gbExperiment?.description || `Migrated from GrowthBook. Feature: ${flag.id}, Experiment: ${gbExperiment?.id || rule.experimentId || 'unknown'}`,
+      400
+    ),
+    hypothesis: gbExperiment?.hypothesis || '',
+    variants,
+    metrics: [],
+    settings: { traffic_fraction: Math.min(Number(trafficFraction) || 1, 1) },
   };
 }
 
@@ -1218,7 +1265,7 @@ async function runImport(dryRun=false) {
   el('btn-copy-log').style.display = 'none';
   el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.id));
-  let flagOk = 0, skip = 0, fail = 0;
+  let flagOk = 0, skip = 0, fail = 0, expOk = 0, expFail = 0;
   const importStartTs = Date.now();
   const retryRun = isRetryRun; isRetryRun = false;
   track('Import Started', {
@@ -1261,7 +1308,47 @@ async function runImport(dryRun=false) {
       log(`   ${r.level==='high'?'⚠':r.level==='medium'?'~':'ℹ'} ${r.detail}`, r.level==='high'?'err':'warn');
     }
 
-    const payload = buildMpFlagPayload(flag, cfg);
+    // ── Experiment linking ──────────────────────────────────────────────────
+    // If this flag has an experiment/experiment-ref rule, fetch the full
+    // GrowthBook Experiment resource (a separate top-level resource from the
+    // feature flag) and create a linked Mixpanel experiment before creating
+    // the flag itself, so the flag's experiment_id can point to it.
+    let mpExperimentId = null;
+    const expRule = gbActiveRules(flag, cfg.gbEnv).find(r =>
+      (r.type === 'experiment' || r.type === 'experiment-ref') && (r.experimentId || Array.isArray(r.variations))
+    );
+    if (expRule) {
+      const gbExperiment = expRule.type === 'experiment-ref' ? await doFetchGbExperiment(cfg, expRule.experimentId) : null;
+      const expPayload = buildGbExperimentPayload(flag, gbExperiment, expRule);
+      if (dryRun) {
+        log(`   [PREVIEW] experiment: "${expPayload.name}" — ${expPayload.variants.length} variant(s)${gbExperiment ? '' : ' (experiment details unavailable — using rule data only)'}`, 'warn');
+        expOk++;
+      } else {
+        try {
+          const expRes = await mpFetch(`https://${mpDomain}/api/app/workspaces/${cfg.mpWorkspace}/experiments`, {
+            method: 'POST', headers: mpAuthHeaders(), body: JSON.stringify(expPayload),
+          });
+          const expBody = await expRes.json().catch(() => ({}));
+          if (expRes.ok) {
+            mpExperimentId = expBody?.id ?? expBody?.experiment_id ?? null;
+            log(`   ✓ Experiment linked${gbExperiment ? '' : ' (built from rule data — GrowthBook experiment details unavailable)'}`, 'ok');
+            expOk++;
+          } else {
+            const expDetail = typeof expBody?.error === 'object' ? JSON.stringify(expBody.error) : (expBody?.error ?? expBody?.message ?? 'HTTP ' + expRes.status);
+            log(`   ✗ Experiment failed: ${expDetail} — flag will still be created, unlinked`, 'err');
+            expFail++;
+            track('Experiment Import Error', { flag_key: flag.id, status: expRes.status, error: expDetail });
+          }
+        } catch(expErr) {
+          log(`   ✗ Experiment network error: ${expErr.message} — flag will still be created, unlinked`, 'err');
+          expFail++;
+          track('Experiment Import Error', { flag_key: flag.id, status: 'network_error', error: expErr.message });
+        }
+        await sleep(120);
+      }
+    }
+
+    const payload = buildMpFlagPayload(flag, cfg, mpExperimentId);
     const meta = payload._gbRolloutMeta ?? [];
     delete payload._gbRolloutMeta;
 
@@ -1271,7 +1358,9 @@ async function runImport(dryRun=false) {
         if (entry.runtime_evaluation_rule) log(`   ✓ ${m.type} rule translated → ${JSON.stringify(entry.runtime_evaluation_rule)}`, 'ok');
         if (m.hasSavedGroups) log(`   ~ savedGroup condition dropped — recreate as Mixpanel cohort manually`, 'warn');
       }
-      if (m.type === 'experiment-ref') log(`   ~ Experiment rule (${m.experimentId||'unknown'}) — link to Mixpanel experiment manually`, 'warn');
+      if (m.type === 'experiment-ref' && !mpExperimentId && !dryRun) {
+        log(`   ~ Experiment rule (${m.experimentId||'unknown'}) — link to Mixpanel experiment manually`, 'warn');
+      }
     }
 
     if (dryRun) {
@@ -1313,11 +1402,13 @@ async function runImport(dryRun=false) {
     el('progress-bar').style.width = `${Math.round(((i+1)/selected.length)*100)}%`;
   }
 
-  const summary = `Done — ${flagOk} created, ${skip} skipped${fail ? `, ${fail} failed` : ''}${importAborted ? ' (aborted)' : ''}`;
-  log(summary, fail ? 'err' : 'ok');
-  track(fail ? 'Import Completed With Errors' : 'Import Succeeded', {
+  const summary = `Done — ${flagOk} created${expOk ? `, ${expOk} experiment(s) linked` : ''}${expFail ? `, ${expFail} experiment failure(s)` : ''}, ${skip} skipped${fail ? `, ${fail} failed` : ''}${importAborted ? ' (aborted)' : ''}`;
+  log(summary, (fail || expFail) ? 'err' : 'ok');
+  track((fail || expFail) ? 'Import Completed With Errors' : 'Import Succeeded', {
     dry_run: dryRun,
     created: flagOk,
+    experiments_created: expOk,
+    experiments_failed: expFail,
     skipped: skip,
     failed: fail,
     aborted: importAborted,
@@ -1329,7 +1420,7 @@ async function runImport(dryRun=false) {
   el('btn-abort').style.display = 'none';
   el('btn-copy-log').style.display = '';
   if (failedFlags.length) el('btn-retry').style.display = '';
-  el('import-mode-hint').textContent = dryRun ? 'Preview complete — click Import to create flags.' : (fail ? `${fail} flag(s) failed — click Retry failed or check the log.` : 'Import complete.');
+  el('import-mode-hint').textContent = dryRun ? 'Preview complete — click Import to create flags.' : (fail ? `${fail} flag(s) failed — click Retry failed or check the log.` : (expFail ? `${expFail} experiment(s) failed to link — flags were still created. Check the log.` : 'Import complete.'));
 }
 // ── Export helpers ────────────────────────────────────────────────────────────
 function exportCSV() {
@@ -1407,6 +1498,7 @@ const el  = id => document.getElementById(id);
 const v   = id => el(id)?.value?.trim() || '';
 const esc = s  => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const trunc = (s, m) => s && s.length > m ? s.slice(0, m-1) + '…' : (s || '');
 
 function gbHeaders(cfg) {
   return { Authorization: `Bearer ${cfg.gbToken}`, Accept: 'application/json' };
