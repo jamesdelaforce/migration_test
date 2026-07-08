@@ -434,6 +434,16 @@
   /* ── Checkbox accent ── */
   input[type=checkbox] { accent-color: var(--purple-06); }
 </style>
+<!-- Mixpanel product analytics (tracks usage of this tool itself — separate from the Optimizely/Mixpanel API credentials entered in the app) -->
+<script type="text/javascript">
+  (function (f, b) { if (!b.__SV) { var e, g, i, h; window.mixpanel = b; b._i = []; b.init = function (e, f, c) { function g(a, d) { var b = d.split("."); 2 == b.length && ((a = a[b[0]]), (d = b[1])); a[d] = function () { a.push([d].concat(Array.prototype.slice.call(arguments, 0))); }; } var a = b; "undefined" !== typeof c ? (a = b[c] = []) : (c = "mixpanel"); a.people = a.people || []; a.toString = function (a) { var d = "mixpanel"; "mixpanel" !== c && (d += "." + c); a || (d += " (stub)"); return d; }; a.people.toString = function () { return a.toString(1) + ".people (stub)"; }; i = "disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split( " "); for (h = 0; h < i.length; h++) g(a, i[h]); var j = "set set_once union unset remove delete".split(" "); a.get_group = function () { function b(c) { d[c] = function () { call2_args = arguments; call2 = [c].concat(Array.prototype.slice.call(call2_args, 0)); a.push([e, call2]); }; } for ( var d = {}, e = ["get_group"].concat( Array.prototype.slice.call(arguments, 0)), c = 0; c < j.length; c++) b(j[c]); return d; }; b._i.push([e, f, c]); }; b.__SV = 1.2; e = f.createElement("script"); e.type = "text/javascript"; e.async = !0; e.src = "undefined" !== typeof MIXPANEL_CUSTOM_LIB_URL ? MIXPANEL_CUSTOM_LIB_URL : "file:" === f.location.protocol && "//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//) ? "https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js" : "//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js"; e.onerror = function() { console.warn('[Mixpanel] SDK failed to load from cdn.mxpnl.com — likely blocked by an ad blocker, browser privacy setting, or network policy. Usage analytics for this tool will be unavailable, but the tool itself is unaffected.'); }; g = f.getElementsByTagName("script")[0]; g.parentNode.insertBefore(e, g); } })(document, window.mixpanel || []);
+
+  mixpanel.init('db28b268ce57682c16ae2e1c5d36fc0f', {
+    track_pageview: true,
+    persistence: 'localStorage',
+    loaded: function() { console.log('[Mixpanel] SDK loaded and initialized.'); },
+  });
+</script>
 </head>
 <body>
 <div class="app">
@@ -678,6 +688,21 @@
 </div>
 
 <script>
+// ── Analytics (safe wrapper — never lets a blocked/missing SDK break the tool) ─
+function track(name, props) {
+  try { if (typeof mixpanel !== 'undefined' && mixpanel.track) mixpanel.track(name, props); }
+  catch(e) { /* analytics must never break the app */ }
+}
+function ruleTypeBreakdown(flags, env) {
+  const out = { plain: 0, rollout: 0, experiment: 0 };
+  flags.forEach(f => { out[flagRuleType(f, env)]++; });
+  return out;
+}
+function sdkBreakdown(flags) {
+  const out = {};
+  flags.forEach(f => { const sdk = flagSdks[f.key] || 'javascript'; out[sdk] = (out[sdk] || 0) + 1; });
+  return out;
+}
 // ── State ─────────────────────────────────────────────────────────────────────
 let allFlags = [];
 let importAborted = false;
@@ -685,6 +710,7 @@ let failedFlags = []; // for retry
 let selectedKeys = new Set();
 let flagSdks = {};   // flagKey → sdk id
 let encodedAuth = '';
+let isRetryRun = false;
 
 const SDKS = [
   { id: 'javascript', label: 'JavaScript (Web)',   serving: 'client' },
@@ -721,7 +747,14 @@ function goTo(id) {
   document.querySelector(`[data-view="${id}"]`).classList.add('active');
   if (id === 'export') renderReport();
   if (id === 'code') renderCodeBlocks();
-  if (id === 'import') el('s-total').textContent = selectedKeys.size;
+  if (id === 'import') {
+    el('s-total').textContent = selectedKeys.size;
+    track('Flags Selected', {
+      selected_count: selectedKeys.size,
+      total_flags: allFlags.length,
+      pct_of_total: allFlags.length ? Math.round((selectedKeys.size / allFlags.length) * 100) : 0,
+    });
+  }
 }
 
 // ── Fetch flags ───────────────────────────────────────────────────────────────
@@ -740,8 +773,12 @@ async function fetchFlags() {
     selectedKeys = new Set(allFlags.map(f => f.key));
     renderTable();
     updateNavDone('config');
+    track('Flags Fetched', { flag_count: allFlags.length, opt_env: cfg.optEnv, mp_region: cfg.mpRegion });
     goTo('select');
-  } catch(e) { showErr(eb, e.message); }
+  } catch(e) {
+    showErr(eb, e.message);
+    track('Flags Fetch Failed', { error: e.message, opt_env: cfg.optEnv });
+  }
   finally { btn.disabled = false; btn.textContent = 'Fetch flags from Optimizely'; }
 }
 
@@ -1025,6 +1062,7 @@ function copyAllSnippets(flagKey) {
     return pre ? pre.innerText : '';
   }).join('\n\n// ─────────────────────────────────\n\n');
   navigator.clipboard.writeText(text);
+  track('All Snippets Copied', { flag_key: flagKey, sdk: flagSdks[flagKey] || 'javascript' });
 }
 
 function buildVariantNames(flag, env) {
@@ -1624,6 +1662,7 @@ function exportCSV() {
   });
   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   download('optimizely_flags_migration_report.csv', csv, 'text/csv');
+  track('Report Exported', { format: 'csv', total_flags: allFlags.length, selected_count: selectedKeys.size });
 }
 
 function exportJSON() {
@@ -1639,6 +1678,7 @@ function exportJSON() {
     selectedForImport: selectedKeys.has(f.key),
   }));
   download('optimizely_flags_migration_report.json', JSON.stringify({ generatedAt: new Date().toISOString(), totalFlags: allFlags.length, selectedForImport: selectedKeys.size, flags: data }, null, 2), 'application/json');
+  track('Report Exported', { format: 'json', total_flags: allFlags.length, selected_count: selectedKeys.size });
 }
 
 function exportMarkdown() {
@@ -1656,6 +1696,7 @@ function exportMarkdown() {
     md += `| \`${f.key}\` | ${f.name||'—'} | ${flagStatus(f)} | ${rt} | ${sdk} | ${selectedKeys.has(f.key)?'✓':'—'} |\n`;
   });
   download('optimizely_flags_migration_report.md', md, 'text/markdown');
+  track('Report Exported', { format: 'markdown', total_flags: allFlags.length, selected_count: selectedKeys.size });
 }
 
 function exportCodeSamples() {
@@ -1675,11 +1716,18 @@ function exportCodeSamples() {
     md += `## \`${f.key}\`\n\n**SDK:** ${sdkLabel}  \n**Rule type:** ${flagRuleType(f, cfg.optEnv)}  \n\n\`\`\`${lang}\n${rawCode}\n\`\`\`\n\n---\n\n`;
   });
   download('mixpanel_flag_code_samples.md', md, 'text/markdown');
+  track('Code Samples Exported', { flag_count: selected.length, sdk_breakdown: sdkBreakdown(selected) });
 }
 
 function copyCode(id) {
   const raw = el(id).innerText;
   navigator.clipboard.writeText(raw);
+  const m = id.match(/^(.+)-(init|eval|exposure)$/);
+  track('Code Snippet Copied', {
+    snippet_type: m ? m[2] : 'unknown',
+    flag_key: m ? m[1] : id,
+    sdk: m ? (flagSdks[m[1]] || 'javascript') : undefined,
+  });
 }
 
 function download(filename, content, mime) {
@@ -1703,6 +1751,16 @@ async function runImport(dryRun=false) {
   el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.key));
   let flagOk = 0, expOk = 0, skip = 0, fail = 0;
+  const importStartTs = Date.now();
+  const retryRun = isRetryRun; isRetryRun = false;
+  track('Import Started', {
+    dry_run: dryRun,
+    selected_count: selected.length,
+    mp_region: cfg.mpRegion,
+    retry: retryRun,
+    rule_type_breakdown: ruleTypeBreakdown(selected, cfg.optEnv),
+    sdk_breakdown: sdkBreakdown(selected),
+  });
   el('s-total').textContent = selected.length;
   el('s-flag').textContent = '0'; el('s-exp').textContent = '0'; el('s-fail').textContent = '0'; el('s-skip').textContent = '0';
   el('import-log').innerHTML = '';
@@ -1717,6 +1775,7 @@ async function runImport(dryRun=false) {
   if (keyErrors.length) {
     for (const e of keyErrors) log(`✗ Key validation failed — ${e}`, 'err');
     log('Fix the above flag keys in Optimizely before importing.', 'err');
+    track('Import Failed', { reason: 'key_validation', dry_run: dryRun, error_count: keyErrors.length });
     el('btn-run').disabled = false; el('btn-preview').disabled = false;
     el('btn-abort').style.display = 'none';
     return;
@@ -1752,8 +1811,15 @@ async function runImport(dryRun=false) {
             const res = await mpFetch(`https://${mpDomain}/api/app/workspaces/${cfg.mpWorkspace}/experiments`, { method:'POST', headers:authHeaders(), body:JSON.stringify(expP) });
             const body = await res.json().catch(()=>({}));
             if (res.ok) { experimentId=body?.id??body?.experiment_id??null; log(`   ✓ Experiment created`, 'ok'); expOk++; }
-            else { log(`   ✗ Experiment failed: ${body?.error??body?.message??'HTTP '+res.status}`, 'err'); }
-          } catch(err) { log(`   ✗ Experiment network error: ${err.message}`, 'err'); }
+            else {
+              const detail = body?.error??body?.message??'HTTP '+res.status;
+              log(`   ✗ Experiment failed: ${detail}`, 'err');
+              track('Experiment Import Error', { flag_key: flag.key, status: res.status, error: detail });
+            }
+          } catch(err) {
+            log(`   ✗ Experiment network error: ${err.message}`, 'err');
+            track('Experiment Import Error', { flag_key: flag.key, status: 'network_error', error: err.message });
+          }
           await sleep(120);
         }
       }
@@ -1785,10 +1851,20 @@ async function runImport(dryRun=false) {
           const detail = typeof body?.error === 'object' ? JSON.stringify(body.error) : (body?.error ?? body?.message ?? 'HTTP '+res.status);
           log(`   ✗ Failed: ${detail}`, 'err'); fail++;
           failedFlags.push(flag);
+          track('Flag Import Error', {
+            flag_key: flag.key, status: res.status, error: detail,
+            rule_type: rt, sdk: flagSdks[flag.key] || 'javascript',
+            had_audience_targeting: audienceRules.length > 0,
+          });
         }
       } catch(err) {
         log(`   ✗ Network error: ${err.message}`, 'err'); fail++;
         failedFlags.push(flag);
+        track('Flag Import Error', {
+          flag_key: flag.key, status: 'network_error', error: err.message,
+          rule_type: rt, sdk: flagSdks[flag.key] || 'javascript',
+          had_audience_targeting: audienceRules.length > 0,
+        });
       }
       await sleep(80);
     }
@@ -1798,6 +1874,17 @@ async function runImport(dryRun=false) {
 
   const summary = `Done — ${flagOk} flags, ${expOk} experiments, ${skip} skipped${fail ? `, ${fail} failed` : ''}${importAborted ? ' (aborted)' : ''}`;
   log(summary, fail ? 'err' : 'ok');
+  track(fail ? 'Import Completed With Errors' : 'Import Succeeded', {
+    dry_run: dryRun,
+    created: flagOk,
+    experiments_created: expOk,
+    skipped: skip,
+    failed: fail,
+    aborted: importAborted,
+    retry: retryRun,
+    duration_ms: Date.now() - importStartTs,
+    rule_type_breakdown: ruleTypeBreakdown(selected, cfg.optEnv),
+  });
   el('btn-run').disabled = false; el('btn-preview').disabled = false;
   el('btn-abort').style.display = 'none';
   el('btn-copy-log').style.display = '';
@@ -2011,6 +2098,7 @@ function abortImport() {
   importAborted = true;
   el('btn-abort').disabled = true;
   el('btn-abort').textContent = 'Aborting…';
+  track('Import Aborted');
 }
 
 // ── Retry failed ──────────────────────────────────────────────────────────────
@@ -2021,6 +2109,7 @@ async function retryFailed() {
   el('btn-retry').style.display = 'none';
   // temporarily add back to selectedKeys and re-run import for just these
   selectedKeys = new Set(toRetry.map(f => f.key));
+  isRetryRun = true;
   await runImport(false);
 }
 
