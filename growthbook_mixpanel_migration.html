@@ -501,7 +501,11 @@ function goTo(id) {
   if (id === 'import') {
     el('s-total').textContent = selectedKeys.size;
     updateImportRateHint();
-    track('Flags Selected', { selected_count: selectedKeys.size, total_flags: allFlags.length });
+    track('Flags Selected', {
+      selected_count: selectedKeys.size,
+      total_flags: allFlags.length,
+      pct_of_total: allFlags.length ? Math.round((selectedKeys.size / allFlags.length) * 100) : 0,
+    });
   }
 }
 
@@ -1108,10 +1112,21 @@ function setEvalModeCode(id, sdk, mode) {
   ['init','eval','exposure'].forEach(p => { const pre = el(`${id}-${p}`); if (pre) pre.innerHTML = snippets[p]; });
 }
 
-function copyCode(elId) { const pre = el(elId); if (pre) navigator.clipboard.writeText(pre.innerText); }
+function copyCode(elId) {
+  const pre = el(elId);
+  if (!pre) return;
+  navigator.clipboard.writeText(pre.innerText);
+  const m = elId.match(/^(.+)-(init|eval|exposure)$/);
+  track('Code Snippet Copied', {
+    snippet_type: m ? m[2] : 'unknown',
+    flag_key: m ? m[1] : elId,
+    sdk: m ? (flagSdks[m[1]] || 'javascript') : undefined,
+  });
+}
 function copyAllSnippets(id) {
   const text = ['init','eval','exposure'].map(p => { const pre = el(`${id}-${p}`); return pre ? pre.innerText : ''; }).join('\n\n// ─────────────\n\n');
   navigator.clipboard.writeText(text);
+  track('All Snippets Copied', { flag_key: id, sdk: flagSdks[id] || 'javascript' });
 }
 
 function generateSnippets(sdk, mode, flagKey, variantList, token) {
@@ -1162,7 +1177,34 @@ function generateSnippets(sdk, mode, flagKey, variantList, token) {
   };
 }
 
+// ── Analytics breakdown helpers ────────────────────────────────────────────────
+function riskBreakdown(flags, gbEnv) {
+  const out = { high: 0, medium: 0, clean: 0 };
+  flags.forEach(f => {
+    const risks = gbRisks(f, gbEnv);
+    if (risks.some(r => r.level === 'high')) out.high++;
+    else if (risks.some(r => r.level === 'medium')) out.medium++;
+    else out.clean++;
+  });
+  return out;
+}
+function sdkBreakdown(flags) {
+  const out = {};
+  flags.forEach(f => {
+    const sdk = flagSdks[f.id] || 'javascript';
+    out[sdk] = (out[sdk] || 0) + 1;
+  });
+  return out;
+}
+function highestRiskLevel(flag, gbEnv) {
+  const risks = gbRisks(flag, gbEnv);
+  if (risks.some(r => r.level === 'high')) return 'high';
+  if (risks.some(r => r.level === 'medium')) return 'medium';
+  return 'clean';
+}
+
 // ── Import ────────────────────────────────────────────────────────────────────
+let isRetryRun = false;
 async function runImport(dryRun=false) {
   const cfg = getCfg();
   importAborted = false;
@@ -1178,7 +1220,15 @@ async function runImport(dryRun=false) {
   const selected = allFlags.filter(f => selectedKeys.has(f.id));
   let flagOk = 0, skip = 0, fail = 0;
   const importStartTs = Date.now();
-  track('Import Started', { dry_run: dryRun, selected_count: selected.length, mp_region: cfg.mpRegion });
+  const retryRun = isRetryRun; isRetryRun = false;
+  track('Import Started', {
+    dry_run: dryRun,
+    selected_count: selected.length,
+    mp_region: cfg.mpRegion,
+    retry: retryRun,
+    risk_breakdown: riskBreakdown(selected, cfg.gbEnv),
+    sdk_breakdown: sdkBreakdown(selected),
+  });
   el('s-total').textContent = selected.length;
   el('s-flag').textContent = '0'; el('s-fail').textContent = '0'; el('s-skip').textContent = '0';
   el('import-log').innerHTML = '';
@@ -1240,12 +1290,22 @@ async function runImport(dryRun=false) {
           const detail = typeof body?.error === 'object' ? JSON.stringify(body.error) : (body?.error ?? body?.message ?? 'HTTP ' + res.status);
           log(`   ✗ Failed: ${detail}`, 'err'); fail++;
           failedFlags.push(flag);
-          track('Flag Import Error', { flag_key: flag.id, status: res.status, error: detail });
+          track('Flag Import Error', {
+            flag_key: flag.id, status: res.status, error: detail,
+            value_type: flag.valueType || 'boolean',
+            rule_type_summary: gbRuleTypeSummary(flag, cfg.gbEnv),
+            risk_level: highestRiskLevel(flag, cfg.gbEnv),
+          });
         }
       } catch(err) {
         log(`   ✗ Network error: ${err.message}`, 'err'); fail++;
         failedFlags.push(flag);
-        track('Flag Import Error', { flag_key: flag.id, status: 'network_error', error: err.message });
+        track('Flag Import Error', {
+          flag_key: flag.id, status: 'network_error', error: err.message,
+          value_type: flag.valueType || 'boolean',
+          rule_type_summary: gbRuleTypeSummary(flag, cfg.gbEnv),
+          risk_level: highestRiskLevel(flag, cfg.gbEnv),
+        });
       }
       await sleep(cfg.delayMs);
     }
@@ -1261,7 +1321,9 @@ async function runImport(dryRun=false) {
     skipped: skip,
     failed: fail,
     aborted: importAborted,
+    retry: retryRun,
     duration_ms: Date.now() - importStartTs,
+    risk_breakdown: riskBreakdown(selected, cfg.gbEnv),
   });
   el('btn-run').disabled = false; el('btn-preview').disabled = false;
   el('btn-abort').style.display = 'none';
@@ -1279,6 +1341,7 @@ function exportCSV() {
     rows.push([f.id, gbFlagStatus(f,cfg.gbEnv), f.valueType||'boolean', gbRuleTypeSummary(f,cfg.gbEnv), risks, String(f.defaultValue??''), sdk, selectedKeys.has(f.id)?'Yes':'No']);
   });
   download('growthbook_migration.csv', rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n'), 'text/csv');
+  track('Report Exported', { format: 'csv', total_flags: allFlags.length, selected_count: selectedKeys.size });
 }
 function exportJSON() {
   const cfg = getCfg();
@@ -1290,6 +1353,7 @@ function exportJSON() {
     selected: selectedKeys.has(f.id),
   }));
   download('growthbook_migration.json', JSON.stringify({generatedAt:new Date().toISOString(),total:allFlags.length,selected:selectedKeys.size,flags:data},null,2), 'application/json');
+  track('Report Exported', { format: 'json', total_flags: allFlags.length, selected_count: selectedKeys.size });
 }
 function exportMarkdown() {
   const cfg = getCfg();
@@ -1299,11 +1363,13 @@ function exportMarkdown() {
     md += `| \`${f.id}\` | ${gbFlagStatus(f,cfg.gbEnv)} | ${f.valueType||'boolean'} | ${gbRuleTypeSummary(f,cfg.gbEnv)} | ${risks} | ${selectedKeys.has(f.id)?'✓':'—'} |\n`;
   });
   download('growthbook_migration.md', md, 'text/markdown');
+  track('Report Exported', { format: 'markdown', total_flags: allFlags.length, selected_count: selectedKeys.size });
 }
 function exportCodeSamples() {
   const token = v('mp-token') || 'YOUR_PROJECT_TOKEN';
+  const flagsForExport = allFlags.filter(f=>selectedKeys.has(f.id));
   let md = `# GrowthBook → Mixpanel SDK Code Samples\n\n`;
-  allFlags.filter(f=>selectedKeys.has(f.id)).forEach(f => {
+  flagsForExport.forEach(f => {
     const sdk  = flagSdks[f.id] || 'javascript';
     const mode = getEvalMode(f.id, sdk);
     const variants = gbBuildVariants(f, getCfg().gbEnv);
@@ -1312,6 +1378,7 @@ function exportCodeSamples() {
     md += `## ${f.id}\n\n### SDK Init\n\`\`\`\n${el(`${f.id}-init`)?.innerText||''}\n\`\`\`\n\n### Flag Retrieval\n\`\`\`\n${el(`${f.id}-eval`)?.innerText||''}\n\`\`\`\n\n### Exposure\n\`\`\`\n${el(`${f.id}-exposure`)?.innerText||''}\n\`\`\`\n\n---\n\n`;
   });
   download('growthbook_migration_code.md', md, 'text/markdown');
+  track('Code Samples Exported', { flag_count: flagsForExport.length, sdk_breakdown: sdkBreakdown(flagsForExport) });
 }
 function download(filename, content, mime) {
   const a = document.createElement('a');
@@ -1379,6 +1446,7 @@ async function retryFailed() {
   el('btn-retry').style.display = 'none';
   // temporarily add back to selectedKeys and re-run import for just these
   selectedKeys = new Set(toRetry.map(f => f.id ?? f.key));
+  isRetryRun = true;
   await runImport(false);
 }
 
