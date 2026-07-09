@@ -1323,7 +1323,12 @@ function setEvalMode(flagKey, sdk, mode) {
   const modes = getEvalModes(sdk);
   const modeObj = modes.find(m=>m.id===mode)||modes[0];
   const snippets = generateSnippets(sdk, mode, flagKey, variants, token);
-  const descDiv = document.querySelector(`#block-${flagKey} [style*="ℹ"]`);
+  // Scope through getElementById (opaque string match, safe for any key
+  // content) instead of interpolating the raw flag key into a querySelector
+  // string — flag keys containing quotes or brackets would otherwise throw
+  // a DOMException here.
+  const blockEl = document.getElementById(`block-${flagKey}`);
+  const descDiv = blockEl ? blockEl.querySelector('[style*="ℹ"]') : null;
   if (descDiv) descDiv.textContent = `ℹ ${modeObj.desc}`;
   ['init','eval','exposure'].forEach(panel => { const pre = el(`${flagKey}-${panel}`); if (pre) pre.innerHTML = snippets[panel]; });
 }
@@ -1645,14 +1650,20 @@ function buildMpRollout(flag, env, variants) {
 
     // Determine which variant this rule serves
     let variantSplits = {};
+    let rolloutPct = 1; // single fixed-variation rules correctly apply to 100% of matching users
     if (rule.variation !== undefined) {
       const mpKey = ldIdxToMpKey.get(rule.variation);
       if (mpKey) variantSplits[mpKey] = 1.0;
     } else if (rule.rollout?.variations) {
-      // Weighted rollout within a rule
+      // Weighted rollout within a rule. LD weights are out of 100000 and can
+      // include the control variation's own share — treatmentTotal / 100000
+      // is the fraction of matching users who get ANY treatment (the rest
+      // fall through to control via the fallback, same model used below for
+      // the flag's default fallthrough rule).
       const rvs = rule.rollout.variations;
       const treatmentTotal = rvs.filter(rv => rv.variation !== controlIdx)
         .reduce((s, rv) => s + (rv.weight ?? 0), 0);
+      rolloutPct = parseFloat(Math.min(treatmentTotal / 100000, 1).toFixed(6));
       let rem = 1.0;
       rvs.filter(rv => rv.variation !== controlIdx).forEach((rv, i, arr) => {
         const mk = ldIdxToMpKey.get(rv.variation);
@@ -1671,7 +1682,7 @@ function buildMpRollout(flag, env, variants) {
       runtime_evaluation_rule: jsonLogicRule ?? null,
       runtime_event_rule: null,
       cohort_hash: '711c452bb1e29c9571593d58f7fc17e5', // stable "all users" hash
-      rollout_percentage: 1,
+      rollout_percentage: rolloutPct,
       variant_override: null,
       variant_splits: variantSplits,
     };
