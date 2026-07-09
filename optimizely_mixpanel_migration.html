@@ -1047,7 +1047,12 @@ function setEvalMode(flagKey, sdk, mode) {
   const modes = getEvalModes(sdk);
   const modeObj = modes.find(m => m.id === mode) || modes[0];
   const snippets = generateSnippets(sdk, mode, flagKey, variants, token);
-  const descDiv = document.querySelector(`#block-${flagKey} [style*="ℹ"]`);
+  // Scope through getElementById (opaque string match, safe for any key
+  // content) instead of interpolating the raw flag key into a querySelector
+  // string — flag keys containing quotes or brackets would otherwise throw
+  // a DOMException here.
+  const blockEl = document.getElementById(`block-${flagKey}`);
+  const descDiv = blockEl ? blockEl.querySelector('[style*="ℹ"]') : null;
   if (descDiv) descDiv.textContent = `ℹ ${modeObj.desc}`;
   // Update all three panels
   ['init','eval','exposure'].forEach(panel => {
@@ -1751,8 +1756,10 @@ async function runImport(dryRun=false) {
   el('import-mode-hint').textContent = dryRun ? 'Previewing — no flags will be created.' : 'Importing — creating flags in Mixpanel…';
   const selected = allFlags.filter(f => selectedKeys.has(f.key));
   let flagOk = 0, expOk = 0, skip = 0, fail = 0;
+  const audienceStats = { fully_translated: 0, partially_translated: 0, untranslated: 0 };
   const importStartTs = Date.now();
   const retryRun = isRetryRun; isRetryRun = false;
+  const audienceCache = new Map(); // Audience objects are commonly reused across rules/flags
   track('Import Started', {
     dry_run: dryRun,
     selected_count: selected.length,
@@ -1825,16 +1832,30 @@ async function runImport(dryRun=false) {
       }
     }
 
-    const flagP = buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations);
+    const flagP = await buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations, audienceCache);
+    const ruleMeta = flagP._optRuleMeta ?? [];
+    delete flagP._optRuleMeta;
 
-    // Surface targeting that can't be auto-migrated: Optimizely audiences map to
-    // saved audience definitions and must be recreated as Mixpanel cohorts.
-    const optRules = fullRuleset
-      ? Object.values(fullRuleset.rules ?? {})
-      : (flag.environments?.[cfg.optEnv]?.rules_detail ?? []);
-    const audienceRules = optRules.filter(optRuleHasAudience);
-    if (audienceRules.length) {
-      log(`   ⚠ ${audienceRules.length} rule(s) use Optimizely audiences — targeting dropped on import; recreate as Mixpanel cohorts manually`, 'err');
+    // Report what was actually translated vs dropped per rule, instead of a
+    // blanket "audiences can't be translated" warning — audiences composed
+    // entirely of custom_attribute conditions ARE translated to JsonLogic now;
+    // only genuinely untranslatable pieces (device/browser/referrer/etc, or
+    // audiences we couldn't fetch) get flagged.
+    let hasUntranslated = false;
+    for (const rm of ruleMeta) {
+      if (!rm.audienceCount) continue; // rule had no audience targeting at all
+      if (rm.translated && !rm.untranslatable.length) {
+        audienceStats.fully_translated++;
+        log(`   ✓ Rule "${rm.ruleName || '(unnamed)'}" — ${rm.audienceCount} audience(s) fully translated → runtime_evaluation_rule`, 'ok');
+      } else if (rm.translated && rm.untranslatable.length) {
+        hasUntranslated = true;
+        audienceStats.partially_translated++;
+        log(`   ~ Rule "${rm.ruleName || '(unnamed)'}" — partially translated; dropped: ${rm.untranslatable.map(u => `${u.audience || 'audience'}(${u.type || u.name || 'condition'})`).join(', ')} — recreate the dropped condition(s) as a Mixpanel cohort manually`, 'warn');
+      } else {
+        hasUntranslated = true;
+        audienceStats.untranslated++;
+        log(`   ⚠ Rule "${rm.ruleName || '(unnamed)'}" — ${rm.audienceCount} audience(s) could not be translated at all (unsupported condition types or fetch failure) — targeting dropped; recreate as a Mixpanel cohort manually`, 'err');
+      }
     }
 
     if (dryRun) {
@@ -1854,7 +1875,7 @@ async function runImport(dryRun=false) {
           track('Flag Import Error', {
             flag_key: flag.key, status: res.status, error: detail,
             rule_type: rt, sdk: flagSdks[flag.key] || 'javascript',
-            had_audience_targeting: audienceRules.length > 0,
+            had_audience_targeting: hasUntranslated,
           });
         }
       } catch(err) {
@@ -1863,7 +1884,7 @@ async function runImport(dryRun=false) {
         track('Flag Import Error', {
           flag_key: flag.key, status: 'network_error', error: err.message,
           rule_type: rt, sdk: flagSdks[flag.key] || 'javascript',
-          had_audience_targeting: audienceRules.length > 0,
+          had_audience_targeting: hasUntranslated,
         });
       }
       await sleep(80);
@@ -1884,6 +1905,7 @@ async function runImport(dryRun=false) {
     retry: retryRun,
     duration_ms: Date.now() - importStartTs,
     rule_type_breakdown: ruleTypeBreakdown(selected, cfg.optEnv),
+    audience_translation: audienceStats,
   });
   el('btn-run').disabled = false; el('btn-preview').disabled = false;
   el('btn-abort').style.display = 'none';
@@ -1906,6 +1928,175 @@ function optRuleHasAudience(rule) {
   return hasConds || hasIds;
 }
 
+// ── Optimizely Audience → JsonLogic ──────────────────────────────────────────
+// Optimizely rules target by referencing named Audience objects (by ID) rather
+// than embedding attribute conditions inline like GrowthBook/LaunchDarkly do.
+// To translate targeting we fetch each referenced Audience and parse ITS OWN
+// condition tree — a nested ["and"|"or"|"not", ...] array whose leaves are
+// objects like { "type": "custom_attribute", "name": "plan", "match_type":
+// "exact", "value": "pro" }. Non-custom_attribute leaf types (device, browser,
+// referrer, ip, location, language, custom_tag, url, session signals, etc.)
+// have no Mixpanel equivalent and are surfaced as untranslatable rather than
+// silently dropped.
+async function doFetchOptAudience(cfg, audienceId) {
+  try {
+    const url = `https://api.optimizely.com/v2/audiences/${encodeURIComponent(audienceId)}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.optToken}`, Accept: 'application/json' } });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+
+function parseOptAudienceConditions(audience) {
+  if (!audience) return null;
+  const raw = audience.conditions;
+  if (Array.isArray(raw) || (raw && typeof raw === 'object')) return raw;
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw); } catch (e) { return null; }
+  }
+  return null;
+}
+
+// Combine already-translated JsonLogic sub-parts with and/or/not. Shared by
+// both translation levels below (an audience's own leaf conditions, and the
+// rule's audience_conditions tree of resolved audience sub-trees).
+function combineJsonLogic(op, parts) {
+  const clean = parts.filter(p => p !== null && p !== undefined);
+  if (op === 'not') {
+    // Can't safely negate a branch we couldn't fully translate — dropping
+    // rather than guessing avoids silently narrowing or widening the audience.
+    if (clean.length !== 1 || clean.length !== parts.length) return null;
+    return { '!': clean[0] };
+  }
+  if (!clean.length) return null;
+  if (clean.length === 1) return clean[0];
+  return op === 'or' ? { or: clean } : { and: clean };
+}
+
+function optLeafConditionToJsonLogic(cond) {
+  if (!cond || cond.type !== 'custom_attribute' || !cond.name) return null;
+  const attr = cond.name;
+  const val  = cond.value;
+  const mt   = cond.match_type || (val === undefined ? 'exists' : 'exact');
+  switch (mt) {
+    case 'exact':     return val === undefined ? null : { '==': [{ var: attr }, val] };
+    case 'substring': return val === undefined ? null : { in: [val, { var: attr }] };
+    case 'exists':    return { '!!': [{ var: attr }] };
+    case 'gt':        return val === undefined ? null : { '>':  [{ var: attr }, val] };
+    case 'ge':        return val === undefined ? null : { '>=': [{ var: attr }, val] };
+    case 'lt':        return val === undefined ? null : { '<':  [{ var: attr }, val] };
+    case 'le':        return val === undefined ? null : { '<=': [{ var: attr }, val] };
+    default:          return null; // semver comparisons, regex, unknown match types
+  }
+}
+
+// Translate a single Audience's own condition tree (leaves are raw condition
+// objects). Returns { rule, definition, untranslatable } — mirrors the LD
+// tool's ldClausesToJsonLogic: translatable leaves are combined, untranslatable
+// ones are surfaced separately instead of dropping the whole branch.
+function optConditionsTreeToJsonLogic(tree) {
+  const untranslatable = [];
+  const definition = {};
+
+  function walk(node) {
+    if (node == null) return null;
+    if (!Array.isArray(node) && typeof node === 'object') {
+      const logic = optLeafConditionToJsonLogic(node);
+      if (logic) {
+        if (node.name) definition[node.name] = node.value ?? '';
+        return logic;
+      }
+      untranslatable.push(node);
+      return null;
+    }
+    if (Array.isArray(node) && node.length) {
+      const [op, ...operands] = node;
+      return combineJsonLogic(op, operands.map(walk));
+    }
+    return null;
+  }
+
+  const rule = walk(tree);
+  return { rule, definition: Object.keys(definition).length ? definition : null, untranslatable };
+}
+
+// Resolve a rule's targeting (audience_conditions tree of audience IDs, or a
+// flat audience_ids list) into JsonLogic by fetching each referenced Audience
+// and substituting its translated condition tree in place of the ID.
+// `audienceCache` is a Map<id, audience|null> shared across the whole import
+// run so a reused audience isn't re-fetched for every rule/flag that uses it.
+async function resolveOptRuleTargeting(cfg, rule, audienceCache) {
+  const rawConditions   = rule.audience_conditions;
+  const hasConditionsTree = Array.isArray(rawConditions) && rawConditions.length > 0;
+  const hasFlatIds       = Array.isArray(rule.audience_ids) && rule.audience_ids.length > 0;
+
+  if (rawConditions === 'everyone' || (!hasConditionsTree && !hasFlatIds)) {
+    return { rule: null, definition: null, untranslatable: [], audienceCount: 0 };
+  }
+
+  // Collect every audience ID referenced (from either representation) and
+  // fetch+cache each one exactly once for the whole import run.
+  const idsNeeded = new Set();
+  if (hasConditionsTree) {
+    (function collect(node) {
+      if (Array.isArray(node)) { node.slice(1).forEach(collect); return; } // skip operator token (element 0)
+      if (typeof node === 'string' || typeof node === 'number') idsNeeded.add(String(node));
+    })(rawConditions);
+  }
+  if (hasFlatIds) rule.audience_ids.forEach(id => idsNeeded.add(String(id)));
+
+  for (const id of idsNeeded) {
+    if (!audienceCache.has(id)) {
+      audienceCache.set(id, await doFetchOptAudience(cfg, id));
+      await sleep(60);
+    }
+  }
+
+  // Translate each referenced audience's own condition tree once.
+  const perAudience = new Map();
+  for (const id of idsNeeded) {
+    const audience   = audienceCache.get(id);
+    const conditions = parseOptAudienceConditions(audience);
+    const translated = conditions
+      ? optConditionsTreeToJsonLogic(conditions)
+      : { rule: null, definition: null, untranslatable: [{ type: 'unresolved_audience', name: `audience ${id}` }] };
+    perAudience.set(id, { audience, ...translated });
+  }
+
+  const untranslatable = [];
+  const definition = {};
+  function resolveNode(node) {
+    if (Array.isArray(node)) {
+      const [op, ...operands] = node;
+      return combineJsonLogic(op, operands.map(resolveNode));
+    }
+    const id = String(node);
+    const info = perAudience.get(id);
+    if (!info) return null;
+    if (info.untranslatable.length) {
+      untranslatable.push(...info.untranslatable.map(u => ({ ...u, audience: info.audience?.name || `audience ${id}` })));
+    }
+    if (info.definition) Object.assign(definition, info.definition);
+    return info.rule;
+  }
+
+  let combinedRule;
+  if (hasConditionsTree) {
+    combinedRule = resolveNode(rawConditions);
+  } else {
+    // Flat audience_ids with no audience_conditions tree = implicit AND
+    // (classic Optimizely model: multiple listed audiences all must match).
+    combinedRule = combineJsonLogic('and', rule.audience_ids.map(id => resolveNode(id)));
+  }
+
+  return {
+    rule: combinedRule,
+    definition: Object.keys(definition).length ? definition : null,
+    untranslatable,
+    audienceCount: idsNeeded.size,
+  };
+}
+
 // ── Ruleset builder ───────────────────────────────────────────────────────────
 // Builds the Mixpanel { variants, rollout } object for a flag. Mirrors the
 // structure produced by the LaunchDarkly / GrowthBook tools.
@@ -1913,8 +2104,11 @@ function optRuleHasAudience(rule) {
 //   • rollout_percentage  ← rule.percentage_included (0–10000 scale → 0–1).
 //   • variant_splits      ← each rule's treatment variations' percentage_included,
 //                            normalised among treatments (control is implicit).
-//   • runtime_evaluation_rule is always null (audiences can't be auto-translated).
-function buildRuleset(flag, fullRuleset, env, flagVariations = []) {
+//   • runtime_evaluation_rule ← translated from the rule's targeted Audiences
+//     where possible (see resolveOptRuleTargeting); untranslatable conditions
+//     (device/browser/referrer/etc, or audiences we couldn't fetch) are
+//     surfaced per-rule in `ruleMeta` rather than silently dropped.
+async function buildRuleset(flag, fullRuleset, env, flagVariations, cfg, audienceCache) {
   const variants    = buildVariantNames(flag, env);         // [{ optKey, mpKey, name }]
   const variantList = ['control', ...variants.map(vr => vr.mpKey)];
   const even        = parseFloat((1 / variantList.length).toFixed(6));
@@ -1961,6 +2155,7 @@ function buildRuleset(flag, fullRuleset, env, flagVariations = []) {
   // variant_splits {treatment:1.0}, NOT rollout 1.0 (which would give everyone the
   // treatment and silently drop the control allocation).
   const rollout = [];
+  const ruleMeta = [];
   for (const rule of allRules) {
     const ruleVars = Object.values(rule.variations ?? {});
     const ck       = getControlKey(rule);
@@ -1995,16 +2190,24 @@ function buildRuleset(flag, fullRuleset, env, flagVariations = []) {
       : (treatmentVars.length ? treatmentVars.length / ruleVars.length : 1);
     const rolloutPct = parseFloat((ruleGate * treatmentShare).toFixed(6));
 
+    const targeting = await resolveOptRuleTargeting(cfg, rule, audienceCache);
+
     rollout.push({
       name: rule.name || rule.key || null,
       cohort_definition: {},
-      runtime_evaluation_definition: {},
-      runtime_evaluation_rule: null, // Optimizely audiences can't be auto-translated
+      runtime_evaluation_definition: targeting.definition ?? {},
+      runtime_evaluation_rule: targeting.rule,
       runtime_event_rule: null,
       cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
       rollout_percentage: rolloutPct,
       variant_override: null,
       variant_splits: variantSplits,
+    });
+    ruleMeta.push({
+      ruleName: rule.name || rule.key || null,
+      translated: !!targeting.rule,
+      audienceCount: targeting.audienceCount,
+      untranslatable: targeting.untranslatable,
     });
   }
 
@@ -2024,10 +2227,10 @@ function buildRuleset(flag, fullRuleset, env, flagVariations = []) {
     });
   }
 
-  return { variants: mpVariants, rollout };
+  return { variants: mpVariants, rollout, ruleMeta };
 }
 
-function buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations=[]) {
+async function buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations=[], audienceCache) {
   const status=flag.archived?'archived':flag.enabled?'enabled':'disabled';
   const sdk=flagSdks[flag.key]||'javascript';
   const servingMethod=SDKS.find(s=>s.id===sdk)?.serving||'server';
@@ -2037,7 +2240,15 @@ function buildFlagPayload(flag, fullRuleset, experimentId, cfg, flagVariations=[
   // garbage assignment key — do NOT do that. If 'user' is not a valid assignment
   // key in your project (Mixpanel defaults to distinct_id), omit this field so
   // Mixpanel applies its default. Verify against one created flag before bulk import.
-  return{name:flag.name??flag.key,key:flag.key,description:flag.description??null,tags:Array.isArray(flag.tags)?flag.tags.map(String):[],context:'user',status,serving_method:servingMethod,experiment_id:experimentId??null,ruleset:buildRuleset(flag,fullRuleset,cfg.optEnv,flagVariations)};
+  const ruleset = await buildRuleset(flag, fullRuleset, cfg.optEnv, flagVariations, cfg, audienceCache);
+  const ruleMeta = ruleset.ruleMeta;
+  delete ruleset.ruleMeta;
+  return {
+    name: flag.name ?? flag.key, key: flag.key, description: flag.description ?? null,
+    tags: Array.isArray(flag.tags) ? flag.tags.map(String) : [], context: 'user', status,
+    serving_method: servingMethod, experiment_id: experimentId ?? null, ruleset,
+    _optRuleMeta: ruleMeta,
+  };
 }
 
 function buildExperimentPayload(flag, abRules) {
