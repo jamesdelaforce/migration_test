@@ -417,7 +417,6 @@
     <div class="stat-card"><div class="stat-n" id="s-flag" style="color:var(--grass-06)">0</div><div class="stat-l">flags created</div></div>
     <div class="stat-card"><div class="stat-n" id="s-skip" style="color:var(--mustard-07)">0</div><div class="stat-l">skipped (exist)</div></div>
     <div class="stat-card"><div class="stat-n" id="s-fail" style="color:var(--lava-07)">0</div><div class="stat-l">failed</div></div>
-        <div class="stat-card"><div class="stat-n" id="s-skip" style="color:var(--text-muted)">0</div><div class="stat-l">skipped</div></div>
   </div>
   <div class="progress-bar-wrap" style="margin-bottom:12px">
     <div class="progress-bar" id="progress-bar" style="width:0%"></div>
@@ -719,9 +718,15 @@ function gbRisks(flag, env) {
 
   // Saved groups — cannot be auto-translated
   const savedGroupRules = rules.filter(r => gbSavedGroups(r).length > 0);
+  const mixedRules = savedGroupRules.filter(r => {
+    const c = parseCondition(r.condition);
+    return c && Object.keys(c).length > 0;
+  });
   if (savedGroupRules.length > 0) {
     risks.push({ level: 'high', label: 'saved groups',
-      detail: `${savedGroupRules.length} rule(s) use savedGroup targeting — recreate as Mixpanel cohorts manually.` });
+      detail: mixedRules.length > 0
+        ? `${savedGroupRules.length} rule(s) use savedGroup targeting — recreate as Mixpanel cohorts manually. ${mixedRules.length} of these ALSO have a translatable attribute condition that will still be applied, so until the cohort is recreated the migrated rule matches a BROADER audience than the original.`
+        : `${savedGroupRules.length} rule(s) use savedGroup targeting — recreate as Mixpanel cohorts manually.` });
   }
 
   // Experiment-ref rules — can't auto-create linked experiments
@@ -743,12 +748,12 @@ function gbRisks(flag, env) {
       detail: `${flag.valueType} variation values preserved in descriptions only — Mixpanel variants use string keys.` });
   }
 
-  // Translatable conditions present
+  // Translatable conditions present (including the translatable half of mixed saved-group rules)
   const condRules = rules.filter(r => {
     const c = parseCondition(r.condition);
     return c && Object.keys(c).length > 0;
   });
-  if (condRules.length > 0 && !savedGroupRules.length) {
+  if (condRules.length > 0) {
     risks.push({ level: 'info', label: 'conditions translated',
       detail: `${condRules.length} rule condition(s) translated to JsonLogic runtime_evaluation_rule.` });
   }
@@ -828,7 +833,7 @@ function gbBuildRollout(flag, env, variants) {
         name: rule.description || null,
         cohort_definition: {},
         runtime_evaluation_definition: definition,
-        runtime_evaluation_rule: hasSavedGroups ? null : jsonLogicRule,
+        runtime_evaluation_rule: jsonLogicRule, // keep translatable condition even if a saved group is ALSO present (see hasSavedGroups warning below)
         runtime_event_rule: null,
         cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
         rollout_percentage: 1,
@@ -843,7 +848,7 @@ function gbBuildRollout(flag, env, variants) {
         name: rule.description || 'Rollout',
         cohort_definition: {},
         runtime_evaluation_definition: definition,
-        runtime_evaluation_rule: hasSavedGroups ? null : jsonLogicRule,
+        runtime_evaluation_rule: jsonLogicRule, // keep translatable condition even if a saved group is ALSO present (see hasSavedGroups warning below)
         runtime_event_rule: null,
         cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
         rollout_percentage: pct,
@@ -866,7 +871,7 @@ function gbBuildRollout(flag, env, variants) {
         name: rule.name || rule.trackingKey || 'Experiment',
         cohort_definition: {},
         runtime_evaluation_definition: definition,
-        runtime_evaluation_rule: hasSavedGroups ? null : jsonLogicRule,
+        runtime_evaluation_rule: jsonLogicRule, // keep translatable condition even if a saved group is ALSO present (see hasSavedGroups warning below)
         runtime_event_rule: null,
         cohort_hash: '711c452bb1e29c9571593d58f7fc17e5',
         rollout_percentage: parseFloat(rule.coverage ?? 1),
@@ -1356,7 +1361,7 @@ async function runImport(dryRun=false) {
       const m = entry._meta ?? {};
       if (m.type === 'force' || m.type === 'rollout') {
         if (entry.runtime_evaluation_rule) log(`   ✓ ${m.type} rule translated → ${JSON.stringify(entry.runtime_evaluation_rule)}`, 'ok');
-        if (m.hasSavedGroups) log(`   ~ savedGroup condition dropped — recreate as Mixpanel cohort manually`, 'warn');
+        if (m.hasSavedGroups) log(`   ~ savedGroup condition dropped — recreate as Mixpanel cohort manually. ${entry.runtime_evaluation_rule ? 'NOTE: this rule also has a translated attribute condition that WAS kept, so until the cohort is added back the migrated rule will match a BROADER audience than the original (missing the saved-group restriction).' : ''}`, 'warn');
       }
       if (m.type === 'experiment-ref' && !mpExperimentId && !dryRun) {
         log(`   ~ Experiment rule (${m.experimentId||'unknown'}) — link to Mixpanel experiment manually`, 'warn');
